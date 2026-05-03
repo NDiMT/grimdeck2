@@ -1,11 +1,11 @@
 import { Dungeon } from '../engine/Dungeon.js';
 import { Renderer } from '../engine/Renderer.js';
-import { Player } from './Player.js';
+import { Player, CARDS } from './Player.js';
 
 export class Game {
   constructor() {
     this.canvas = document.getElementById('dungeon-canvas');
-    this.state = 'explore'; // 'explore' | 'combat'
+    this.state = 'explore';
     this.currentEnemy = null;
     this.lastTime = 0;
     this.floor = 1;
@@ -13,8 +13,8 @@ export class Game {
     this._newFloor();
     this._setupInput();
     this._resize();
+    requestAnimationFrame(() => this._resize());
     window.addEventListener('resize', () => this._resize());
-
     requestAnimationFrame(t => this._loop(t));
   }
 
@@ -24,9 +24,7 @@ export class Game {
     this.dungeon = new Dungeon();
     const { x, z } = this.dungeon.startPos;
 
-    if (!this.renderer) {
-      this.renderer = new Renderer(this.canvas);
-    }
+    if (!this.renderer) this.renderer = new Renderer(this.canvas);
     if (!this.player) {
       this.player = new Player(x, z);
     } else {
@@ -37,14 +35,13 @@ export class Game {
     this.renderer.buildDungeon(this.dungeon.grid);
     this.renderer.buildEnemyMarkers(this.dungeon.enemies);
     this.renderer.setPlayer(this.player.x, this.player.z, this.player.dir);
-
     document.getElementById('floor-num').textContent = this.floor;
     this._updateHUD();
   }
 
   _resize() {
-    const view = document.getElementById('dungeon-view');
-    this.renderer.resize(view.clientWidth, view.clientHeight);
+    const v = document.getElementById('dungeon-view');
+    this.renderer.resize(v.clientWidth, v.clientHeight);
   }
 
   // ── Game loop ─────────────────────────────────
@@ -63,14 +60,10 @@ export class Game {
     const { dx, dz } = this.player.forwardDelta();
     const nx = this.player.x + (fwd ? dx : -dx);
     const nz = this.player.z + (fwd ? dz : -dz);
-
     if (this.dungeon.isWall(nx, nz)) return;
 
     const enemy = this.dungeon.getEnemyAt(nx, nz);
-    if (enemy && fwd) {
-      this._startCombat(enemy);
-      return;
-    }
+    if (enemy && fwd) { this._startCombat(enemy); return; }
 
     this.player.moveTo(nx, nz);
     this.renderer.setPlayer(this.player.x, this.player.z, this.player.dir);
@@ -87,6 +80,7 @@ export class Game {
   _startCombat(enemy) {
     this.state = 'combat';
     this.currentEnemy = enemy;
+    this.player.startCombat();
 
     document.getElementById('controls').classList.add('hidden');
     document.getElementById('combat-controls').classList.remove('hidden');
@@ -94,44 +88,90 @@ export class Game {
     document.getElementById('enemy-name').textContent = enemy.name;
     document.getElementById('enemy-intent-val').textContent = enemy.attack;
 
-    this.player.drawHand();
     this._updateCombatUI();
     this._updateHUD();
   }
 
-  _endCombat() {
-    this.currentEnemy.alive = false;
-    this.renderer.updateEnemyMarkers();
-    this.state = 'explore';
-    this.currentEnemy = null;
-
-    document.getElementById('controls').classList.remove('hidden');
-    document.getElementById('combat-controls').classList.add('hidden');
-    document.getElementById('enemy-overlay').classList.add('hidden');
-
-    this._updateHUD();
-  }
-
-  playCard(index) {
+  playCard(i) {
     if (this.state !== 'combat') return;
-    const card = this.player.hand[index];
+    const card = this.player.hand[i];
     if (!card || this.player.energy < card.cost) return;
 
-    this.player.energy -= card.cost;
-    this.player.hand.splice(index, 1);
+    const p = this.player, e = this.currentEnemy;
+    p.energy -= card.cost;
+    p.hand.splice(i, 1);
 
-    if (card.type === 'attack') {
-      this.currentEnemy.hp = Math.max(0, this.currentEnemy.hp - card.value);
-      this._flashDungeonView();
-      if (this.currentEnemy.hp <= 0) {
-        setTimeout(() => this._endCombat(), 400);
-        this._updateCombatUI();
-        return;
+    switch (card.effect) {
+      case 'damage': {
+        const hits = card.hits || 1;
+        const dmg = Math.max(0, card.value + p.strength);
+        for (let h = 0; h < hits; h++) e.hp = Math.max(0, e.hp - dmg);
+        this._flash();
+        break;
       }
-    } else if (card.type === 'block') {
-      this.player.block += card.value;
+      case 'block':
+        p.block += card.value + p.dexterity;
+        break;
+      case 'entrench':
+        p.block *= 2;
+        break;
+      case 'bodyslam':
+        e.hp = Math.max(0, e.hp - p.block);
+        this._flash();
+        break;
+      case 'iron_wave':
+        p.block += card.value + p.dexterity;
+        e.hp = Math.max(0, e.hp - card.value - p.strength);
+        this._flash();
+        break;
+      case 'whirlwind': {
+        const spent = p.energy;
+        e.hp = Math.max(0, e.hp - card.value * spent);
+        p.energy = 0;
+        this._flash();
+        break;
+      }
+      case 'strength':
+        p.strength += card.value;
+        break;
+      case 'dexterity':
+        p.dexterity += card.value;
+        break;
+      case 'bloodletting':
+        p.hp = Math.max(1, p.hp - 3);
+        p.energy += 2;
+        break;
+      case 'draw': {
+        const drawn = [...p.deck].sort(() => Math.random() - 0.5).slice(0, card.value);
+        p.hand.push(...drawn);
+        break;
+      }
+      case 'energy':
+        p.energy += card.value;
+        break;
+      case 'second_wind': {
+        const nonAtk = p.hand.filter(c => c.type !== 'attack');
+        p.block += nonAtk.length * card.value;
+        p.hand = p.hand.filter(c => c.type === 'attack');
+        break;
+      }
+      case 'offering':
+        p.hp = Math.max(1, p.hp - 6);
+        p.energy += 2;
+        p.hand.push(...[...p.deck].sort(() => Math.random() - 0.5).slice(0, 3));
+        break;
     }
 
+    if (card.draw) {
+      p.hand.push(...[...p.deck].sort(() => Math.random() - 0.5).slice(0, card.draw));
+    }
+
+    if (e.hp <= 0) {
+      setTimeout(() => this._victory(), 350);
+      this._updateCombatUI();
+      this._updateHUD();
+      return;
+    }
     this._updateCombatUI();
     this._updateHUD();
   }
@@ -139,57 +179,100 @@ export class Game {
   _enemyTurn() {
     if (this.state !== 'combat') return;
     const dmg = this.currentEnemy.attack;
-    const absorbed = Math.min(this.player.block, dmg);
+    const abs = Math.min(this.player.block, dmg);
     this.player.block = Math.max(0, this.player.block - dmg);
-    this.player.hp = Math.max(0, this.player.hp - (dmg - absorbed));
-
+    this.player.hp = Math.max(0, this.player.hp - (dmg - abs));
     this._updateHUD();
     this.player.drawHand();
     this._updateCombatUI();
   }
 
-  // ── UI updates ────────────────────────────────
+  // ── Victory / Reward ──────────────────────────
+
+  _victory() {
+    this.currentEnemy.alive = false;
+    this.renderer.updateEnemyMarkers();
+    document.getElementById('combat-controls').classList.add('hidden');
+    document.getElementById('enemy-overlay').classList.add('hidden');
+    this._showReward();
+  }
+
+  _showReward() {
+    const pool = CARDS.filter(c => !c.starter);
+    const picks = [...pool].sort(() => Math.random() - 0.5).slice(0, 3);
+    const el = document.getElementById('reward-cards');
+    el.innerHTML = '';
+    picks.forEach(card => {
+      const div = document.createElement('div');
+      div.className = `card ${card.type}`;
+      div.innerHTML = `
+        <div class="card-cost">${card.cost}</div>
+        <div class="card-name">${card.name}</div>
+        <div class="card-value">${card.value || '✦'}</div>
+        <div class="card-desc">${card.desc}${card.exhaust ? ' <em>(Exhaust)</em>' : ''}</div>`;
+      div.addEventListener('pointerdown', ev => { ev.preventDefault(); this._pickReward(card); });
+      el.appendChild(div);
+    });
+    document.getElementById('reward-overlay').classList.remove('hidden');
+  }
+
+  _pickReward(card) {
+    this.player.deck.push({ ...card, id: card.id + '_' + Date.now() });
+    this._returnToExplore();
+  }
+
+  _returnToExplore() {
+    this.state = 'explore';
+    this.currentEnemy = null;
+    document.getElementById('reward-overlay').classList.add('hidden');
+    document.getElementById('controls').classList.remove('hidden');
+    this._updateHUD();
+  }
+
+  // ── UI ────────────────────────────────────────
 
   _updateHUD() {
-    const pct = (this.player.hp / this.player.maxHp) * 100;
-    document.getElementById('health-fill').style.width = pct + '%';
-    document.getElementById('health-text').textContent = `${this.player.hp}/${this.player.maxHp}`;
-    document.getElementById('block-text').textContent = `🛡 ${this.player.block}`;
-    document.getElementById('energy-text').textContent = `⚡ ${this.player.energy}`;
+    const p = this.player;
+    document.getElementById('health-fill').style.width = (p.hp / p.maxHp * 100) + '%';
+    document.getElementById('health-text').textContent = `${p.hp}/${p.maxHp}`;
+    document.getElementById('block-text').textContent = `🛡 ${p.block}`;
+    document.getElementById('energy-text').textContent = `⚡ ${p.energy}`;
   }
 
   _updateCombatUI() {
-    const enemy = this.currentEnemy;
-    if (!enemy) return;
+    const p = this.player, e = this.currentEnemy;
+    if (!e) return;
 
-    const pct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
-    document.getElementById('enemy-hp-fill').style.width = pct + '%';
-    document.getElementById('enemy-hp-text').textContent = `${enemy.hp}/${enemy.maxHp}`;
-    document.getElementById('energy-text').textContent = `⚡ ${this.player.energy}`;
-    document.getElementById('block-text').textContent = `🛡 ${this.player.block}`;
+    document.getElementById('enemy-hp-fill').style.width = Math.max(0, e.hp / e.maxHp * 100) + '%';
+    document.getElementById('enemy-hp-text').textContent = `${e.hp}/${e.maxHp}`;
+    document.getElementById('energy-text').textContent = `⚡ ${p.energy}`;
+    document.getElementById('block-text').textContent = `🛡 ${p.block}`;
 
-    const handEl = document.getElementById('hand');
-    handEl.innerHTML = '';
+    const stats = document.getElementById('combat-stats');
+    stats.innerHTML = '';
+    if (p.strength > 0) stats.innerHTML += `<span class="stat-badge">⚔ STR +${p.strength}</span>`;
+    if (p.dexterity > 0) stats.innerHTML += `<span class="stat-badge">🛡 DEX +${p.dexterity}</span>`;
 
-    this.player.hand.forEach((card, i) => {
+    const hand = document.getElementById('hand');
+    hand.innerHTML = '';
+    p.hand.forEach((card, i) => {
       const el = document.createElement('div');
-      el.className = `card ${card.type}${this.player.energy < card.cost ? ' disabled' : ''}`;
+      el.className = `card ${card.type}${p.energy < card.cost ? ' disabled' : ''}`;
       el.innerHTML = `
         <div class="card-cost">${card.cost}</div>
         <div class="card-name">${card.name}</div>
-        <div class="card-value">${card.value}</div>
-        <div class="card-desc">${card.desc}</div>
-      `;
-      el.addEventListener('pointerdown', e => { e.preventDefault(); this.playCard(i); });
-      handEl.appendChild(el);
+        <div class="card-value">${card.value || '✦'}</div>
+        <div class="card-desc">${card.desc}</div>`;
+      el.addEventListener('pointerdown', ev => { ev.preventDefault(); this.playCard(i); });
+      hand.appendChild(el);
     });
   }
 
-  _flashDungeonView() {
-    const view = document.getElementById('dungeon-view');
-    view.classList.remove('damage-flash');
-    void view.offsetWidth; // reflow to restart animation
-    view.classList.add('damage-flash');
+  _flash() {
+    const v = document.getElementById('dungeon-view');
+    v.classList.remove('damage-flash');
+    void v.offsetWidth;
+    v.classList.add('damage-flash');
   }
 
   // ── Input ─────────────────────────────────────
@@ -200,12 +283,12 @@ export class Game {
       if (!el) return;
       el.addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
     };
-
-    on('btn-forward', () => this._move(true));
-    on('btn-back',    () => this._move(false));
-    on('btn-left',    () => this._turn(true));
-    on('btn-right',   () => this._turn(false));
-    on('btn-end-turn', () => this._enemyTurn());
+    on('btn-forward',     () => this._move(true));
+    on('btn-back',        () => this._move(false));
+    on('btn-left',        () => this._turn(true));
+    on('btn-right',       () => this._turn(false));
+    on('btn-end-turn',    () => this._enemyTurn());
+    on('btn-skip-reward', () => this._returnToExplore());
 
     window.addEventListener('keydown', e => {
       if (e.key === 'ArrowUp'    || e.key === 'w') this._move(true);
