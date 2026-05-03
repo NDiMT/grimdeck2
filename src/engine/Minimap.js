@@ -3,41 +3,36 @@ export class Minimap {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.cs = 5;
+    this.grid = dungeon.grid;
     canvas.width  = dungeon.width  * this.cs;
     canvas.height = dungeon.height * this.cs;
     const display = Math.min(110, dungeon.width * this.cs);
     canvas.style.width  = display + 'px';
     canvas.style.height = display + 'px';
-    this._buildBase(dungeon.grid);
   }
 
-  _buildBase(grid) {
-    const { cs } = this;
-    const offscreen = document.createElement('canvas');
-    offscreen.width  = grid[0].length * cs;
-    offscreen.height = grid.length * cs;
-    const oc = offscreen.getContext('2d');
+  update(player, enemies, visited) {
+    const { ctx, cs, grid } = this;
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
     for (let z = 0; z < grid.length; z++) {
       for (let x = 0; x < grid[z].length; x++) {
-        oc.fillStyle = grid[z][x] === 1 ? '#1a1510' : '#5a4838';
-        oc.fillRect(x * cs, z * cs, cs, cs);
+        if (!visited.has(`${x},${z}`)) continue;
+        ctx.fillStyle = grid[z][x] === 1 ? '#1a1510' : '#5a4838';
+        ctx.fillRect(x * cs, z * cs, cs, cs);
       }
     }
-    this._base = offscreen;
-  }
-
-  update(player, enemies) {
-    const { ctx, cs } = this;
-    ctx.drawImage(this._base, 0, 0);
 
     enemies.forEach(e => {
-      if (e.alive) return;
+      if (e.alive || !visited.has(`${e.x},${e.z}`)) return;
       ctx.fillStyle = 'rgba(80,60,50,.6)';
       ctx.fillRect(e.x * cs + 1, e.z * cs + 1, cs - 2, cs - 2);
     });
 
     enemies.forEach(e => {
-      if (!e.alive) return;
+      if (!e.alive || !visited.has(`${e.x},${e.z}`)) return;
       ctx.fillStyle = '#cc2200';
       ctx.beginPath();
       ctx.arc((e.x + .5) * cs, (e.z + .5) * cs, cs * .42, 0, Math.PI * 2);

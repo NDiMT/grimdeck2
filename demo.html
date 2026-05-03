@@ -303,53 +303,43 @@ class Minimap {
   constructor(canvas, dungeon) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.cs = 5; // cell size in px
+    this.cs = 5;
+    this.grid = dungeon.grid;
     canvas.width  = dungeon.width  * this.cs;
     canvas.height = dungeon.height * this.cs;
-    // CSS size: display at ~110px regardless of grid size
     const display = Math.min(110, dungeon.width * this.cs);
     canvas.style.width  = display + 'px';
     canvas.style.height = display + 'px';
-    this._base = null;
-    this._buildBase(dungeon.grid);
   }
 
-  _buildBase(grid) {
-    const {ctx, cs} = this;
-    const offscreen = document.createElement('canvas');
-    offscreen.width  = grid[0].length * cs;
-    offscreen.height = grid.length * cs;
-    const oc = offscreen.getContext('2d');
+  update(player, enemies, visited) {
+    const {ctx, cs, grid} = this;
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
     for (let z = 0; z < grid.length; z++) {
       for (let x = 0; x < grid[z].length; x++) {
-        oc.fillStyle = grid[z][x] === 1 ? '#1a1510' : '#5a4838';
-        oc.fillRect(x * cs, z * cs, cs, cs);
+        if (!visited.has(`${x},${z}`)) continue;
+        ctx.fillStyle = grid[z][x] === 1 ? '#1a1510' : '#5a4838';
+        ctx.fillRect(x * cs, z * cs, cs, cs);
       }
     }
-    this._base = offscreen;
-  }
 
-  update(player, enemies) {
-    const {ctx, cs} = this;
-    ctx.drawImage(this._base, 0, 0);
-
-    // Dead enemies (dim)
     enemies.forEach(e => {
-      if (e.alive) return;
+      if (e.alive || !visited.has(`${e.x},${e.z}`)) return;
       ctx.fillStyle = 'rgba(80,60,50,.6)';
       ctx.fillRect(e.x * cs + 1, e.z * cs + 1, cs - 2, cs - 2);
     });
 
-    // Alive enemies (red dot)
     enemies.forEach(e => {
-      if (!e.alive) return;
+      if (!e.alive || !visited.has(`${e.x},${e.z}`)) return;
       ctx.fillStyle = '#cc2200';
       ctx.beginPath();
       ctx.arc((e.x + .5) * cs, (e.z + .5) * cs, cs * .42, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    // Player dot (gold)
     const px = (player.x + .5) * cs;
     const pz = (player.z + .5) * cs;
     ctx.fillStyle = '#c9a84c';
@@ -357,7 +347,6 @@ class Minimap {
     ctx.arc(px, pz, cs * .55, 0, Math.PI * 2);
     ctx.fill();
 
-    // Direction arrow
     const angle = [-Math.PI/2, 0, Math.PI/2, Math.PI][player.dir];
     ctx.strokeStyle = '#ffe080';
     ctx.lineWidth = 1.2;
@@ -393,19 +382,21 @@ class Renderer {
     this.camera.add(this.torch);
     this.scene.add(this.camera);
   }
-  _loadTex(src){
+  _loadTex(src,seamless=false){
     const t=new THREE.TextureLoader().load(src);
-    t.wrapS=t.wrapT=THREE.RepeatWrapping;
+    t.wrapS=seamless?THREE.MirroredRepeatWrapping:THREE.RepeatWrapping;
+    t.wrapT=THREE.RepeatWrapping;
     t.colorSpace=THREE.SRGBColorSpace;
+    if(seamless)t.repeat.set(2,1);
     return t;
   }
   buildDungeon(grid){
     this.dungeonGroup.clear();
     const wMats=[
-      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall)}),
-      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_rune)}),
-      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_torch)}),
-      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_skull)}),
+      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall,true)}),
+      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_rune,true)}),
+      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_torch,true)}),
+      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_skull,true)}),
     ];
     const fMat=new THREE.MeshLambertMaterial({map:this._loadTex(TEX.floor)});
     const cMat=new THREE.MeshLambertMaterial({color:0x0e0c0a});
@@ -499,10 +490,12 @@ class Game {
     if(!this.player){this.player=new Player(x,z);}
     else{this.player.moveTo(x,z);this.player.dir=0;}
     this.renderer.buildDungeon(this.dungeon.grid);
+    this.visited=new Set();
+    this._markVisible(x,z);
     this.renderer.buildEnemyMarkers(this.dungeon.enemies);
     this.renderer.setPlayer(this.player.x,this.player.z,this.player.dir);
     this.minimap=new Minimap(this.minimapCanvas,this.dungeon);
-    this.minimap.update(this.player,this.dungeon.enemies);
+    this.minimap.update(this.player,this.dungeon.enemies,this.visited);
     document.getElementById('floor-num').textContent=this.floor;
     this._updateHUD();
   }
@@ -527,17 +520,33 @@ class Game {
     const nx=this.player.x+(fwd?dx:-dx),nz=this.player.z+(fwd?dz:-dz);
     if(this.dungeon.isWall(nx,nz))return;
     const enemy=this.dungeon.getEnemyAt(nx,nz);
-    if(enemy&&fwd){this._startCombat(enemy);return;}
+    if(enemy&&fwd){this._markVisible(nx,nz);this._startCombat(enemy);return;}
     this.player.moveTo(nx,nz);
+    this._markVisible(nx,nz);
     this.renderer.setPlayer(this.player.x,this.player.z,this.player.dir);
-    this.minimap.update(this.player,this.dungeon.enemies);
+    this.minimap.update(this.player,this.dungeon.enemies,this.visited);
   }
 
   _turn(left){
     if(this.state!=='explore')return;
     left?this.player.turnLeft():this.player.turnRight();
     this.renderer.setPlayer(this.player.x,this.player.z,this.player.dir);
-    this.minimap.update(this.player,this.dungeon.enemies);
+    this.minimap.update(this.player,this.dungeon.enemies,this.visited);
+  }
+
+  _markVisible(x,z){
+    const g=this.dungeon.grid,v=this.visited;
+    const reveal=(cx,cz)=>{
+      v.add(`${cx},${cz}`);
+      for(const[dx,dz]of[[1,0],[-1,0],[0,1],[0,-1]])
+        if(g[cz+dz]?.[cx+dx]===1)v.add(`${cx+dx},${cz+dz}`);
+    };
+    reveal(x,z);
+    for(const[dx,dz]of[[1,0],[-1,0],[0,1],[0,-1]]){
+      let nx=x+dx,nz=z+dz;
+      while(g[nz]?.[nx]===0){reveal(nx,nz);nx+=dx;nz+=dz;}
+      if(g[nz]?.[nx]===1)v.add(`${nx},${nz}`);
+    }
   }
 
   // ── Combat ────────────────────────────
@@ -612,7 +621,7 @@ class Game {
   _victory(){
     this.currentEnemy.alive=false;
     this.renderer.updateEnemyMarkers();
-    this.minimap.update(this.player,this.dungeon.enemies);
+    this.minimap.update(this.player,this.dungeon.enemies,this.visited);
     document.getElementById('combat-controls').classList.add('hidden');
     document.getElementById('enemy-overlay').classList.add('hidden');
     this._showReward();

@@ -40,10 +40,12 @@ export class Renderer {
     this.scene.add(this.camera);
   }
 
-  _loadTex(path) {
+  _loadTex(path, seamless = false) {
     const t = new THREE.TextureLoader().load(path);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.wrapS = seamless ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
+    t.wrapT = THREE.RepeatWrapping;
     t.colorSpace = THREE.SRGBColorSpace;
+    if (seamless) t.repeat.set(2, 1);
     return t;
   }
 
@@ -51,10 +53,10 @@ export class Renderer {
     this.dungeonGroup.clear();
 
     const wMats = [
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall.jpg') }),
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_rune.jpg') }),
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_torch.jpg') }),
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_skull.jpg') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall.jpg', true) }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_rune.jpg', true) }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_torch.jpg', true) }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_skull.jpg', true) }),
     ];
     const fMat = new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor.jpg') });
     const cMat = new THREE.MeshLambertMaterial({ color: 0x0e0c0a });

@@ -33,11 +33,14 @@ export class Game {
       this.player.dir = 0;
     }
 
+    this.visited = new Set();
+    this._markVisible(x, z);
+
     this.renderer.buildDungeon(this.dungeon.grid);
     this.renderer.buildEnemyMarkers(this.dungeon.enemies);
     this.renderer.setPlayer(this.player.x, this.player.z, this.player.dir);
     this.minimap = new Minimap(document.getElementById('minimap'), this.dungeon);
-    this.minimap.update(this.player, this.dungeon.enemies);
+    this.minimap.update(this.player, this.dungeon.enemies, this.visited);
     document.getElementById('floor-num').textContent = this.floor;
     this._updateHUD();
   }
@@ -66,18 +69,35 @@ export class Game {
     if (this.dungeon.isWall(nx, nz)) return;
 
     const enemy = this.dungeon.getEnemyAt(nx, nz);
-    if (enemy && fwd) { this._startCombat(enemy); return; }
+    if (enemy && fwd) { this._markVisible(nx, nz); this._startCombat(enemy); return; }
 
     this.player.moveTo(nx, nz);
+    this._markVisible(nx, nz);
     this.renderer.setPlayer(this.player.x, this.player.z, this.player.dir);
-    this.minimap.update(this.player, this.dungeon.enemies);
+    this.minimap.update(this.player, this.dungeon.enemies, this.visited);
   }
 
   _turn(left) {
     if (this.state !== 'explore') return;
     left ? this.player.turnLeft() : this.player.turnRight();
     this.renderer.setPlayer(this.player.x, this.player.z, this.player.dir);
-    this.minimap.update(this.player, this.dungeon.enemies);
+    this.minimap.update(this.player, this.dungeon.enemies, this.visited);
+  }
+
+  _markVisible(x, z) {
+    const g = this.dungeon.grid;
+    const v = this.visited;
+    const reveal = (cx, cz) => {
+      v.add(`${cx},${cz}`);
+      for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]])
+        if (g[cz+dz]?.[cx+dx] === 1) v.add(`${cx+dx},${cz+dz}`);
+    };
+    reveal(x, z);
+    for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      let nx = x + dx, nz = z + dz;
+      while (g[nz]?.[nx] === 0) { reveal(nx, nz); nx += dx; nz += dz; }
+      if (g[nz]?.[nx] === 1) v.add(`${nx},${nz}`);
+    }
   }
 
   // ── Combat ────────────────────────────────────
@@ -197,7 +217,7 @@ export class Game {
   _victory() {
     this.currentEnemy.alive = false;
     this.renderer.updateEnemyMarkers();
-    this.minimap.update(this.player, this.dungeon.enemies);
+    this.minimap.update(this.player, this.dungeon.enemies, this.visited);
     document.getElementById('combat-controls').classList.add('hidden');
     document.getElementById('enemy-overlay').classList.add('hidden');
     this._showReward();
