@@ -110,21 +110,27 @@ export class Renderer {
   buildEnemyMarkers(enemies) {
     this.enemyGroup.clear();
     const loader = new THREE.TextureLoader();
+    const loadTex = key => {
+      const t = loader.load(`/sprites/${key}.png`);
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.magFilter = THREE.LinearFilter;
+      t.minFilter = THREE.LinearFilter;
+      return t;
+    };
 
     enemies.forEach(enemy => {
       const group = new THREE.Group();
-      const tex = loader.load(`/sprites/${enemy.sprite}.png`);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.magFilter = THREE.LinearFilter;
-      tex.minFilter = THREE.LinearFilter;
+      const texIdle = loadTex(enemy.sprite);
+      const texHit  = loadTex(enemy.sprite + '_hit');
+      const texDead = loadTex(enemy.sprite + '_dead');
       const sz = TILE * (enemy.size || 1.0);
       const fy = enemy.floatY || 0;
       const cy = sz / 2 + fy;
 
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: tex, transparent: true, alphaTest: 0.1, depthWrite: false,
-        fog: true,
-      }));
+      const mat = new THREE.SpriteMaterial({
+        map: texIdle, transparent: true, alphaTest: 0.1, depthWrite: false, fog: true,
+      });
+      const sprite = new THREE.Sprite(mat);
       sprite.scale.set(sz, sz, 1);
       sprite.position.y = cy;
       group.add(sprite);
@@ -136,13 +142,27 @@ export class Renderer {
       group.position.set(enemy.x * TILE, 0, enemy.z * TILE);
       group.userData.enemy = enemy;
       group.userData.sprite = sprite;
+      group.userData.texIdle = texIdle;
+      group.userData.texHit  = texHit;
+      group.userData.texDead = texDead;
       this.enemyGroup.add(group);
     });
   }
 
+  setEnemyState(enemy, state) {
+    const group = this.enemyGroup.children.find(g => g.userData.enemy === enemy);
+    if (!group) return;
+    const mat = group.userData.sprite.material;
+    if (state === 'hit')       mat.map = group.userData.texHit;
+    else if (state === 'dead') mat.map = group.userData.texDead;
+    else                       mat.map = group.userData.texIdle;
+    mat.needsUpdate = true;
+    group.visible = state !== 'hidden';
+  }
+
   updateEnemyMarkers() {
     this.enemyGroup.children.forEach(group => {
-      group.visible = group.userData.enemy.alive;
+      if (!group.userData.enemy.alive) group.visible = false;
     });
   }
 
