@@ -325,15 +325,15 @@ html, body {
 
 .card {
   flex-shrink: 0;
-  width: 68px;
-  min-height: 108px;
+  width: clamp(62px, 21vw, 80px);
+  min-height: 112px;
   background: #12100a;
   border: 1px solid var(--gold-dark);
   border-radius: 8px;
   padding: 6px;
   cursor: pointer;
   user-select: none;
-  touch-action: none;
+  touch-action: pan-x;
   display: flex;
   flex-direction: column;
   gap: 4px;

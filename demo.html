@@ -85,9 +85,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Geo
 
 /* ── Cards ─────────────────────────────────── */
 .card{
-  flex-shrink:0;width:68px;min-height:108px;background:#12100a;
+  flex-shrink:0;width:clamp(62px,21vw,80px);min-height:112px;background:#12100a;
   border:1px solid var(--gold-dark);border-radius:8px;padding:6px 5px;
-  cursor:pointer;user-select:none;touch-action:none;display:flex;flex-direction:column;
+  cursor:pointer;user-select:none;touch-action:pan-x;display:flex;flex-direction:column;
   gap:3px;transition:transform .15s,box-shadow .15s;-webkit-user-select:none
 }
 .card:active{transform:scale(.92) translateY(-6px);box-shadow:0 10px 24px rgba(0,0,0,.7)}
@@ -380,7 +380,7 @@ class Renderer {
     this.scene.fog=new THREE.Fog(0x000000,4,22);
     this.camera=new THREE.PerspectiveCamera(72,1,0.05,60);
     this.renderer=new THREE.WebGLRenderer({canvas,antialias:false});
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
     this._setupLights();
     this.dungeonGroup=new THREE.Group();
     this.enemyGroup=new THREE.Group();
@@ -409,15 +409,22 @@ class Renderer {
     ];
     const fMat=new THREE.MeshLambertMaterial({map:this._loadTex(TEX.floor)});
     const cMat=new THREE.MeshLambertMaterial({color:0x0e0c0a});
-    const wGeo=new THREE.BoxGeometry(TILE,WALL_H,TILE);
+    const wallGeo=new THREE.PlaneGeometry(TILE,WALL_H);
     const pGeo=new THREE.PlaneGeometry(TILE,TILE);
+    const FACES=[[0,-1,Math.PI,0,-TILE/2],[1,0,Math.PI/2,TILE/2,0],[0,1,0,0,TILE/2],[-1,0,-Math.PI/2,-TILE/2,0]];
     for(let z=0;z<grid.length;z++){
       for(let x=0;x<grid[z].length;x++){
         const wx=x*TILE,wz=z*TILE;
         if(grid[z][x]===1){
-          const r=Math.random();
-          const mat=r<0.60?wMats[0]:r<0.80?wMats[1]:r<0.92?wMats[2]:wMats[3];
-          const w=new THREE.Mesh(wGeo,mat);w.position.set(wx,WALL_H/2,wz);this.dungeonGroup.add(w);
+          FACES.forEach(([dx,dz,rotY,ox,oz])=>{
+            const nx=x+dx,nz=z+dz;
+            if(!grid[nz]||grid[nz][nx]!==0)return;
+            const r=Math.random();
+            const mat=r<0.60?wMats[0]:r<0.80?wMats[1]:r<0.92?wMats[2]:wMats[3];
+            const face=new THREE.Mesh(wallGeo,mat);
+            face.position.set(wx+ox,WALL_H/2,wz+oz);face.rotation.y=rotY;
+            this.dungeonGroup.add(face);
+          });
         } else {
           const fl=new THREE.Mesh(pGeo,fMat);fl.rotation.x=-Math.PI/2;fl.position.set(wx,0,wz);this.dungeonGroup.add(fl);
           const cl=new THREE.Mesh(pGeo,cMat);cl.rotation.x=Math.PI/2;cl.position.set(wx,WALL_H,wz);this.dungeonGroup.add(cl);
@@ -622,7 +629,9 @@ class Game {
         <div class="card-name">${card.name}</div>
         <div class="card-value">${card.value||'✦'}</div>
         <div class="card-desc">${card.desc}${card.exhaust?' ·Exhaust':''}</div>`;
-      div.addEventListener('pointerdown',ev=>{ev.preventDefault();this._pickReward(card);});
+      let rx,ry;
+      div.addEventListener('pointerdown',ev=>{rx=ev.clientX;ry=ev.clientY;});
+      div.addEventListener('pointerup',ev=>{if(Math.hypot(ev.clientX-rx,ev.clientY-ry)<12){ev.preventDefault();this._pickReward(card);}});
       el.appendChild(div);
     });
     document.getElementById('reward-overlay').classList.remove('hidden');
@@ -669,7 +678,9 @@ class Game {
         <div class="card-name">${card.name}</div>
         <div class="card-value">${card.value||'✦'}</div>
         <div class="card-desc">${card.desc}</div>`;
-      el.addEventListener('pointerdown',ev=>{ev.preventDefault();this.playCard(i);});
+      let tx,ty;
+      el.addEventListener('pointerdown',ev=>{tx=ev.clientX;ty=ev.clientY;});
+      el.addEventListener('pointerup',ev=>{if(Math.hypot(ev.clientX-tx,ev.clientY-ty)<12){ev.preventDefault();this.playCard(i);}});
       hand.appendChild(el);
     });
   }

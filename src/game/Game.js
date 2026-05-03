@@ -216,7 +216,11 @@ export class Game {
         <div class="card-name">${card.name}</div>
         <div class="card-value">${card.value || '✦'}</div>
         <div class="card-desc">${card.desc}${card.exhaust ? ' <em>(Exhaust)</em>' : ''}</div>`;
-      div.addEventListener('pointerdown', ev => { ev.preventDefault(); this._pickReward(card); });
+      let rx, ry;
+      div.addEventListener('pointerdown', ev => { rx = ev.clientX; ry = ev.clientY; });
+      div.addEventListener('pointerup', ev => {
+        if (Math.hypot(ev.clientX - rx, ev.clientY - ry) < 12) { ev.preventDefault(); this._pickReward(card); }
+      });
       el.appendChild(div);
     });
     document.getElementById('reward-overlay').classList.remove('hidden');
@@ -269,7 +273,11 @@ export class Game {
         <div class="card-name">${card.name}</div>
         <div class="card-value">${card.value || '✦'}</div>
         <div class="card-desc">${card.desc}</div>`;
-      el.addEventListener('pointerdown', ev => { ev.preventDefault(); this.playCard(i); });
+      let tx, ty;
+      el.addEventListener('pointerdown', ev => { tx = ev.clientX; ty = ev.clientY; });
+      el.addEventListener('pointerup', ev => {
+        if (Math.hypot(ev.clientX - tx, ev.clientY - ty) < 12) { ev.preventDefault(); this.playCard(i); }
+      });
       hand.appendChild(el);
     });
   }

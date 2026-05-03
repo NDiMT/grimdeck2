@@ -22,7 +22,7 @@ export class Renderer {
     this.camera = new THREE.PerspectiveCamera(72, 1, 0.05, 60);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     this._setupLights();
 
@@ -59,8 +59,16 @@ export class Renderer {
     const fMat = new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor.jpg') });
     const cMat = new THREE.MeshLambertMaterial({ color: 0x0e0c0a });
 
-    const wGeo = new THREE.BoxGeometry(TILE, WALL_H, TILE);
+    const wallGeo = new THREE.PlaneGeometry(TILE, WALL_H);
     const pGeo = new THREE.PlaneGeometry(TILE, TILE);
+
+    // [neighborDx, neighborDz, rotY, posOffsetX, posOffsetZ]
+    const FACES = [
+      [ 0, -1,  Math.PI,       0,        -TILE / 2],
+      [ 1,  0,  Math.PI / 2,   TILE / 2,  0       ],
+      [ 0,  1,  0,             0,          TILE / 2],
+      [-1,  0, -Math.PI / 2,  -TILE / 2,  0       ],
+    ];
 
     for (let z = 0; z < grid.length; z++) {
       for (let x = 0; x < grid[z].length; x++) {
@@ -68,11 +76,16 @@ export class Renderer {
         const wz = z * TILE;
 
         if (grid[z][x] === 1) {
-          const r = Math.random();
-          const mat = r < 0.60 ? wMats[0] : r < 0.80 ? wMats[1] : r < 0.92 ? wMats[2] : wMats[3];
-          const wall = new THREE.Mesh(wGeo, mat);
-          wall.position.set(wx, WALL_H / 2, wz);
-          this.dungeonGroup.add(wall);
+          FACES.forEach(([dx, dz, rotY, ox, oz]) => {
+            const nx = x + dx, nz = z + dz;
+            if (!grid[nz] || grid[nz][nx] !== 0) return;
+            const r = Math.random();
+            const mat = r < 0.60 ? wMats[0] : r < 0.80 ? wMats[1] : r < 0.92 ? wMats[2] : wMats[3];
+            const face = new THREE.Mesh(wallGeo, mat);
+            face.position.set(wx + ox, WALL_H / 2, wz + oz);
+            face.rotation.y = rotY;
+            this.dungeonGroup.add(face);
+          });
         } else {
           const floor = new THREE.Mesh(pGeo, fMat);
           floor.rotation.x = -Math.PI / 2;
