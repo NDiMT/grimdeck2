@@ -119,8 +119,7 @@ export class Renderer {
       const cy = sz / 2 + fy;
 
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: tex, transparent: true, alphaTest: 0.5, depthWrite: false,
-        color: 0x110a04,
+        map: tex, transparent: true, alphaTest: 0.1, depthWrite: false,
       }));
       sprite.scale.set(sz, sz, 1);
       sprite.position.y = cy;
@@ -163,12 +162,10 @@ export class Renderer {
     this.enemyGroup.children.forEach(group => {
       if (!group.visible) return;
       const dist = cam.distanceTo(group.position);
-      // fully dark at 10+ units, fully lit at 3 units
+      // fade to dark with distance, white at close range
       const t = Math.max(0, Math.min(1, (10 - dist) / 7));
-      const r = 0x11 + Math.round((0x88 - 0x11) * t);
-      const g = 0x0a + Math.round((0x66 - 0x0a) * t);
-      const b = 0x04 + Math.round((0x44 - 0x04) * t);
-      group.userData.sprite.material.color.setRGB(r / 255, g / 255, b / 255);
+      const v = 0x18 + Math.round((0xff - 0x18) * t);
+      group.userData.sprite.material.color.setRGB(v / 255, v / 255, v / 255);
     });
 
     this.renderer.render(this.scene, this.camera);
