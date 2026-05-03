@@ -1,12 +1,12 @@
 const FLOOR1_ENEMIES = [
-  {name:'Skeleton',   hp:18, attack:5},
-  {name:'Goblin',     hp:14, attack:7},
-  {name:'Zombie',     hp:26, attack:4},
-  {name:'Dark Bat',   hp:10, attack:8},
-  {name:'Cave Troll', hp:32, attack:6},
-  {name:'Shade',      hp:20, attack:6},
-  {name:'Rat Pack',   hp:15, attack:5},
-  {name:'Cursed Eye', hp:22, attack:7},
+  {name:'Skeleton',   hp:18, attack:5, sprite:'skeleton', glowColor:0xff3300, size:1.0},
+  {name:'Goblin',     hp:14, attack:7, sprite:'goblin',   glowColor:0x44ff00, size:0.85},
+  {name:'Zombie',     hp:26, attack:4, sprite:'zombie',   glowColor:0x77ff22, size:1.0},
+  {name:'Dark Bat',   hp:10, attack:8, sprite:'bat',      glowColor:0x9933ff, size:0.85, floatY:0.3},
+  {name:'Cave Troll', hp:32, attack:6, sprite:'troll',    glowColor:0x4488aa, size:1.3},
+  {name:'Shade',      hp:20, attack:6, sprite:'shade',    glowColor:0x6600cc, size:1.0},
+  {name:'Rat Pack',   hp:15, attack:5, sprite:'rat',      glowColor:0xff4400, size:0.8},
+  {name:'Cursed Eye', hp:22, attack:7, sprite:'eye',      glowColor:0xff0000, size:0.75, floatY:0.4},
 ];
 
 export class Dungeon {
@@ -45,6 +45,7 @@ export class Dungeon {
         x: room.x + Math.floor(room.w / 2),
         z: room.y + Math.floor(room.h / 2),
         hp: t.hp, maxHp: t.hp, attack: t.attack, name: t.name, alive: true,
+        sprite: t.sprite, glowColor: t.glowColor, size: t.size, floatY: t.floatY || 0,
       };
     });
   }

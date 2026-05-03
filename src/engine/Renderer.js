@@ -103,30 +103,43 @@ export class Renderer {
 
   buildEnemyMarkers(enemies) {
     this.enemyGroup.clear();
-
-    const eyeGeo = new THREE.SphereGeometry(0.07, 6, 6);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
+    const loader = new THREE.TextureLoader();
 
     enemies.forEach(enemy => {
-      const marker = new THREE.Group();
-      // Two glowing eyes
-      [-0.15, 0.15].forEach(ox => {
-        const eye = new THREE.Mesh(eyeGeo, eyeMat);
-        eye.position.set(ox, 0, 0);
-        marker.add(eye);
-      });
-      const glow = new THREE.PointLight(0xff1100, 0.8, 3, 2);
-      marker.add(glow);
+      const group = new THREE.Group();
+      const tex = loader.load(`/sprites/${enemy.sprite}.png`);
+      const sz = TILE * (enemy.size || 1.0);
+      const fy = enemy.floatY || 0;
+      const cy = sz / 2 + fy;
 
-      marker.position.set(enemy.x * TILE, EYE_Y, enemy.z * TILE);
-      marker.userData.enemy = enemy;
-      this.enemyGroup.add(marker);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: tex, transparent: true, alphaTest: 0.1, depthWrite: false,
+      }));
+      sprite.scale.set(sz, sz, 1);
+      sprite.position.y = cy;
+      group.add(sprite);
+
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: tex, transparent: true, blending: THREE.AdditiveBlending,
+        color: enemy.glowColor || 0xff4400, opacity: 0.35, depthWrite: false,
+      }));
+      glow.scale.set(sz * 1.25, sz * 1.25, 1);
+      glow.position.y = cy;
+      group.add(glow);
+
+      const light = new THREE.PointLight(enemy.glowColor || 0xff4400, 1.2, 6, 2);
+      light.position.y = cy;
+      group.add(light);
+
+      group.position.set(enemy.x * TILE, 0, enemy.z * TILE);
+      group.userData.enemy = enemy;
+      this.enemyGroup.add(group);
     });
   }
 
   updateEnemyMarkers() {
-    this.enemyGroup.children.forEach(marker => {
-      marker.visible = marker.userData.enemy.alive;
+    this.enemyGroup.children.forEach(group => {
+      group.visible = group.userData.enemy.alive;
     });
   }
 
