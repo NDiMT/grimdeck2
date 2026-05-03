@@ -114,15 +114,13 @@ export class Renderer {
       const fy = enemy.floatY || 0;
       const cy = sz / 2 + fy;
 
-      // color tint matches dungeon ambient so sprite looks lit by the scene
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: tex, transparent: true, alphaTest: 0.5, depthWrite: false,
-        color: 0x886644,
+        color: 0x110a04,
       }));
       sprite.scale.set(sz, sz, 1);
       sprite.position.y = cy;
       group.add(sprite);
-
 
       const light = new THREE.PointLight(0xffbb66, 1.5, 4, 2);
       light.position.y = cy;
@@ -130,6 +128,7 @@ export class Renderer {
 
       group.position.set(enemy.x * TILE, 0, enemy.z * TILE);
       group.userData.enemy = enemy;
+      group.userData.sprite = sprite;
       this.enemyGroup.add(group);
     });
   }
@@ -155,6 +154,18 @@ export class Renderer {
     this.torchTime += dt;
     this.torch.intensity =
       7.5 + Math.sin(this.torchTime * 6.3) * 0.5 + Math.sin(this.torchTime * 11.7) * 0.25;
+
+    const cam = this.camera.position;
+    this.enemyGroup.children.forEach(group => {
+      if (!group.visible) return;
+      const dist = cam.distanceTo(group.position);
+      // fully dark at 10+ units, fully lit at 3 units
+      const t = Math.max(0, Math.min(1, (10 - dist) / 7));
+      const r = 0x11 + Math.round((0xcc - 0x11) * t);
+      const g = 0x0a + Math.round((0xaa - 0x0a) * t);
+      const b = 0x04 + Math.round((0x66 - 0x04) * t);
+      group.userData.sprite.material.color.setRGB(r / 255, g / 255, b / 255);
+    });
 
     this.renderer.render(this.scene, this.camera);
   }
