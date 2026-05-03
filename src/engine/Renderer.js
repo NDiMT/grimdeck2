@@ -21,7 +21,7 @@ export class Renderer {
 
     this.camera = new THREE.PerspectiveCamera(72, 1, 0.05, 60);
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     this._setupLights();
@@ -44,6 +44,9 @@ export class Renderer {
     const t = new THREE.TextureLoader().load(path);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.colorSpace = THREE.SRGBColorSpace;
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
     return t;
   }
 
