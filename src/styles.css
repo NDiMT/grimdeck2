@@ -66,6 +66,17 @@ html, body {
   z-index: 1;
 }
 
+#weapon-sprite {
+  position: absolute;
+  bottom: -8%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(260px, 68vw);
+  image-rendering: pixelated;
+  pointer-events: none;
+  z-index: 1;
+}
+
 #minimap {
   z-index: 2;
   position: absolute;

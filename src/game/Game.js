@@ -108,6 +108,7 @@ export class Game {
     this.player.startCombat();
 
     document.getElementById('controls').classList.add('hidden');
+    document.getElementById('weapon-sprite').classList.add('hidden');
     document.getElementById('combat-controls').classList.remove('hidden');
     document.getElementById('enemy-overlay').classList.remove('hidden');
     document.getElementById('enemy-name').textContent = enemy.name;
@@ -256,6 +257,7 @@ export class Game {
     this.currentEnemy = null;
     document.getElementById('reward-overlay').classList.add('hidden');
     document.getElementById('controls').classList.remove('hidden');
+    document.getElementById('weapon-sprite').classList.remove('hidden');
     this._updateHUD();
   }
 
