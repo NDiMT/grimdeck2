@@ -51,13 +51,16 @@ export class Renderer {
     this.dungeonGroup.clear();
 
     const wMats = [
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall.jpg') }),
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_rune.jpg') }),
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_torch.jpg') }),
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_skull.jpg') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall.png') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_chain.png') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_torch.png') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_skull.png') }),
     ];
-    const fMat = new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor.jpg') });
-    const cMat = new THREE.MeshLambertMaterial({ color: 0x0e0c0a });
+    const fMats = [
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor.png') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor2.png') }),
+    ];
+    const cMat = new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/ceiling.png') });
 
     const wallGeo = new THREE.PlaneGeometry(TILE, TILE);
     const pGeo = new THREE.PlaneGeometry(TILE, TILE);
@@ -87,7 +90,7 @@ export class Renderer {
             this.dungeonGroup.add(face);
           });
         } else {
-          const floor = new THREE.Mesh(pGeo, fMat);
+          const floor = new THREE.Mesh(pGeo, Math.random() < 0.15 ? fMats[1] : fMats[0]);
           floor.rotation.x = -Math.PI / 2;
           floor.position.set(wx, 0, wz);
           this.dungeonGroup.add(floor);
