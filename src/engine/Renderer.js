@@ -43,14 +43,12 @@ export class Renderer {
   _loadTex(path) {
     const t = new THREE.TextureLoader().load(path, tex => {
       const img = tex.image;
-      const w = img.width, h = img.height, hw = w >> 1, hh = h >> 1;
+      const w = img.width, h = img.height, hw = w >> 1;
       const c = document.createElement('canvas');
       c.width = w; c.height = h;
       const ctx = c.getContext('2d');
-      ctx.drawImage(img, hw, hh, hw, hh,  0,  0, hw, hh);
-      ctx.drawImage(img,  0, hh, hw, hh, hw,  0, hw, hh);
-      ctx.drawImage(img, hw,  0, hw, hh,  0, hh, hw, hh);
-      ctx.drawImage(img,  0,  0, hw, hh, hw, hh, hw, hh);
+      ctx.drawImage(img, hw, 0, hw, h,  0, 0, hw, h);
+      ctx.drawImage(img,  0, 0, hw, h, hw, 0, hw, h);
       tex.image = c;
       tex.needsUpdate = true;
     });
