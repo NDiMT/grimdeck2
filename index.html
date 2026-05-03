@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, orientation=landscape">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>GrimDeck</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0c0c12;display:flex;justify-content:center;align-items:center;width:100vw;height:100vh;overflow:hidden;touch-action:none}
+canvas{cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="g"></canvas>
+<script>
+'use strict';
+// ── polyfill roundRect ────────────────────────────────────────────────────────
+if(!CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
+    r=typeof r==='number'?r:0;
+    this.beginPath();
+    this.moveTo(x+r,y);this.lineTo(x+w-r,y);this.quadraticCurveTo(x+w,y,x+w,y+r);
+    this.lineTo(x+w,y+h-r);this.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    this.lineTo(x+r,y+h);this.quadraticCurveTo(x,y+h,x,y+h-r);
+    this.lineTo(x,y+r);this.quadraticCurveTo(x,y,x+r,y);
+    this.closePath();
+  };
+}
+
+// ── constants ─────────────────────────────────────────────────────────────────
+const VW=1280,VH=720,CW=118,CH=165;
+const C={
+  BG:'#0c0c12',PANEL:'#191926',DGRAY:'#2d2d3a',GRAY:'#646473',LGRAY:'#afafbe',WHITE:'#f0f0f8',
+  RED:'#d23737',DRED:'#821c1c',GREEN:'#37c355',DGREEN:'#1c6e30',
+  BLUE:'#3773d7',DBLUE:'#1c3c87',YELLOW:'#ebd337',ORANGE:'#e17d30',
+  PURPLE:'#9b37d7',CYAN:'#37c3d7',GOLD:'#d7af37',
+  ATK:'#5a1919',SKL:'#193264',PWR:'#3c1964',STS:'#323232'
+};
+const EFF={STR:'str',DEX:'dex',VUL:'vul',WEAK:'weak',RITUAL:'ritual',POISON:'poison',
+           METAL:'metal',DEMON:'demon',RAGE:'rage',BARR:'barr',FNP:'fnp'};
+const EFF_LBL={str:'Str',dex:'Dex',vul:'Vuln',weak:'Weak',ritual:'Ritual',
+               poison:'Poison',metal:'Metal',demon:'Demon',rage:'Rage',barr:'Barr',fnp:'FNP'};
+const EFF_COL={str:'#dc6432',dex:'#32b4dc',vul:'#dc3232',weak:'#b49632',ritual:'#b432dc',
+               poison:'#50c850',metal:'#9696dc',demon:'#dc32b4',rage:'#dc5032',
+               barr:'#3264dc',fnp:'#c8c850'};
+const INT={ATK:'atk',DEF:'def',BUFF:'buf',DEBUF:'deb',SLEEP:'slp'};
+const INT_SYM={atk:'⚔',def:'🛡',buf:'⬆',deb:'⬇',slp:'💤'};
+const INT_COL={atk:C.RED,def:C.BLUE,buf:C.ORANGE,deb:C.PURPLE,slp:C.CYAN};
+
+// ── utils ─────────────────────────────────────────────────────────────────────
+let _uid=0;
+const uid=()=>++_uid;
+const rand=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function sample(a,n){return shuffle([...a]).slice(0,n);}
+function wRand(w){let t=Object.values(w).reduce((s,v)=>s+v,0),r=Math.random()*t;for(const[k,v]of Object.entries(w)){r-=v;if(r<=0)return k;}return Object.keys(w)[0];}
+function lerp(a,b,t){return a+(b-a)*t;}
+function lerpC(a,b,t){
+  const p=h=>parseInt(h.replace('#',''),16);
+  const A=p(a),B=p(b);
+  const r=Math.round(lerp((A>>16)&0xff,(B>>16)&0xff,t));
+  const g=Math.round(lerp((A>>8)&0xff,(B>>8)&0xff,t));
+  const bl=Math.round(lerp(A&0xff,B&0xff,t));
+  return`rgb(${r},${g},${bl})`;
+}
+function inR(r,x,y){return r&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h;}
+
+// ── Card ──────────────────────────────────────────────────────────────────────
+class Card{
+  constructor(id,name,cost,kind,desc,rarity,fn,o={}){
+    this.uid=uid();this.id=id;this.name=name;this.cost=cost;this.kind=kind;
+    this.desc=desc;this.rarity=rarity;this._fn=fn;
+    this.exhausts=!!o.exhausts;this.needsTarget=o.needsTarget!==false;
+    this.hitsAll=!!o.hitsAll;this.upgraded=false;this.xVal=0;
+  }
+  get color(){return{attack:C.ATK,skill:C.SKL,power:C.PWR,status:C.STS}[this.kind]||C.DGRAY;}
+  canPlay(e){return this.id==='wound'?false:this.cost<0?e>0:e>=this.cost;}
+  play(ctx){
+    if(this.cost<0){this.xVal=ctx.player.energy;ctx.player.energy=0;}
+    else ctx.player.energy-=this.cost;
+    this._fn(this,ctx);
+  }
+  clone(){return new Card(this.id,this.name,this.cost,this.kind,this.desc,this.rarity,this._fn,
+    {exhausts:this.exhausts,needsTarget:this.needsTarget,hitsAll:this.hitsAll});}
+}
+
+// card helpers
+const D=(base,times=1)=>(c,ctx)=>{
+  const ts=c.hitsAll?ctx.monsters:(ctx.target?[ctx.target]:[]);
+  ts.forEach(t=>{for(let i=0;i<times;i++)ctx.dealDamage(base,ctx.player,t);});
+};
+const B=(base)=>(c,ctx)=>ctx.gainBlock(base,ctx.player);
+
+// card factories
+const CF={
+  strike:    ()=>new Card('strike','Strike',1,'attack','Deal 6 damage.','starter',D(6)),
+  defend:    ()=>new Card('defend','Defend',1,'skill','Gain 5 Block.','starter',B(5),{needsTarget:false}),
+  bash:      ()=>new Card('bash','Bash',2,'attack','Deal 8 dmg.\nApply 2 Vuln.','starter',(c,x)=>{D(8)(c,x);if(x.target)x.applyEff(x.target,EFF.VUL,2);}),
+  iron_wave: ()=>new Card('iron_wave','Iron Wave',1,'attack','Deal 5 dmg.\nGain 5 Block.','common',(c,x)=>{D(5)(c,x);B(5)(c,x);}),
+  twin:      ()=>new Card('twin','Twin Strike',1,'attack','Deal 5 dmg twice.','common',D(5,2)),
+  pommel:    ()=>new Card('pommel','Pommel Strike',1,'attack','Deal 9 dmg.\nDraw 1.','common',(c,x)=>{D(9)(c,x);x.draw(1);}),
+  anger:     ()=>new Card('anger','Anger',0,'attack','Deal 6 dmg.\nCopy→discard.','common',(c,x)=>{D(6)(c,x);x.player.discardPile.push(c.clone());}),
+  cleave:    ()=>new Card('cleave','Cleave',1,'attack','Deal 8 to ALL.','common',D(8),{needsTarget:false,hitsAll:true}),
+  thunder:   ()=>new Card('thunder','Thunderclap',1,'attack','4 to ALL.\n+1 Vuln all.','common',(c,x)=>{D(4)(c,x);x.monsters.forEach(m=>x.applyEff(m,EFF.VUL,1));},{needsTarget:false,hitsAll:true}),
+  shrug:     ()=>new Card('shrug','Shrug It Off',1,'skill','Gain 8 Block.\nDraw 1.','common',(c,x)=>{B(8)(c,x);x.draw(1);},{needsTarget:false}),
+  flex:      ()=>new Card('flex','Flex',0,'skill','Gain 2 Str.\nLose EOT.','common',(c,x)=>{x.applyEff(x.player,EFF.STR,2);x.tempStr+=2;},{needsTarget:false}),
+  headbutt:  ()=>new Card('headbutt','Headbutt',1,'attack','Deal 9 dmg.\nTop discard→draw.','common',(c,x)=>{D(9)(c,x);if(x.player.discardPile.length){const t=x.player.discardPile.pop();x.player.drawPile.unshift(t);x.log('Returned '+t.name);}}),
+  clothesline:()=>new Card('clothesline','Clothesline',2,'attack','Deal 12 dmg.\nApply 2 Weak.','uncommon',(c,x)=>{D(12)(c,x);if(x.target)x.applyEff(x.target,EFF.WEAK,2);}),
+  wild:      ()=>new Card('wild','Wild Strike',1,'attack','Deal 12 dmg.\nWound→deck.','uncommon',(c,x)=>{D(12)(c,x);x.player.drawPile.push(CF.wound());shuffle(x.player.drawPile);x.log('Wound added.');}),
+  disarm:    ()=>new Card('disarm','Disarm',1,'skill','Enemy -2 Str.\nExhaust.','uncommon',(c,x)=>{if(x.target)x.applyEff(x.target,EFF.STR,-2);},{exhausts:true}),
+  spot:      ()=>new Card('spot','Spot Weakness',1,'skill','If enemy attacks\ngain 3 Str.','uncommon',(c,x)=>{if(x.monsters.some(m=>m.intentIsAtk())){x.applyEff(x.player,EFF.STR,3);x.log('+3 Str!');}else x.log('No attacker.');},{needsTarget:false}),
+  arms:      ()=>new Card('arms','Armaments',1,'skill','Gain 5 Block.\nUpgrade a card.','uncommon',(c,x)=>{B(5)(c,x);const u=x.player.hand.filter(h=>!h.upgraded);if(u.length){const t=u[rand(0,u.length-1)];t.upgraded=true;t.name+='+';x.log('Upgraded '+t.name);}},{needsTarget:false}),
+  seeingred: ()=>new Card('seeingred','Seeing Red',1,'skill','Gain 2 Energy.\nExhaust.','uncommon',(c,x)=>{x.player.energy+=2;},{needsTarget:false,exhausts:true}),
+  trance:    ()=>new Card('trance','Battle Trance',0,'skill','Draw 3.\nNo more cards.','uncommon',(c,x)=>{x.draw(3);x.noMore=true;},{needsTarget:false,exhausts:true}),
+  whirl:     ()=>new Card('whirl','Whirlwind',-1,'attack','5 to ALL × X.','rare',(c,x)=>{x.monsters.forEach(m=>{for(let i=0;i<c.xVal;i++)x.dealDamage(5,x.player,m);});},{needsTarget:false,hitsAll:true}),
+  demon:     ()=>new Card('demon','Demon Form',3,'power','Start of turn\n+2 Str.','rare',(c,x)=>{x.applyEff(x.player,EFF.DEMON,2);},{needsTarget:false}),
+  metal:     ()=>new Card('metal','Metallicize',1,'power','End of turn\n+3 Block.','rare',(c,x)=>{x.applyEff(x.player,EFF.METAL,3);},{needsTarget:false}),
+  inflame:   ()=>new Card('inflame','Inflame',1,'power','Gain 2 Str.','rare',(c,x)=>{x.applyEff(x.player,EFF.STR,2);},{needsTarget:false}),
+  wound:     ()=>new Card('wound','Wound',1,'status','Unplayable.','special',()=>{},{needsTarget:false}),
+  slimed:    ()=>new Card('slimed','Slimed',1,'status','Exhaust.','special',(c,x)=>x.exhaust(c),{needsTarget:false,exhausts:true}),
+};
+
+const COMMON=['iron_wave','twin','pommel','anger','cleave','thunder','shrug','flex','headbutt'];
+const UNCOMMON=['clothesline','wild','disarm','spot','arms','seeingred','trance'];
+const RARE=['whirl','demon','metal','inflame'];
+
+function rewardCards(n=3){
+  const r=Math.random();
+  const pool=r<0.55?COMMON:r<0.85?UNCOMMON:RARE;
+  return sample(pool,Math.min(n,pool.length)).map(id=>CF[id]());
+}
+function starterDeck(){
+  const d=[];
+  for(let i=0;i<5;i++)d.push(CF.strike());
+  for(let i=0;i<4;i++)d.push(CF.defend());
+  d.push(CF.bash());
+  return d;
+}
+
+// ── Monster ───────────────────────────────────────────────────────────────────
+class Monster{
+  constructor(name,hpR,col){
+    this.uid=uid();this.name=name;this.maxHp=rand(...hpR);this.hp=this.maxHp;
+    this.block=0;this.effects={};this.color=col||'#b43c3c';this._t=0;this._pat=[];
+  }
+  get isAlive(){return this.hp>0;}
+  getE(n,d=0){return this.effects[n]||d;}
+  addE(n,v){this.effects[n]=(this.effects[n]||0)+v;}
+  intentIsAtk(){return this._pat.length&&this._pat[this._t%this._pat.length].type===INT.ATK;}
+  curIntent(){return this._pat.length?this._pat[this._t%this._pat.length]:{type:'?',value:0,action:null};}
+  takeTurn(player,ctx){
+    if(!this.isAlive)return;
+    if(this.getE(EFF.POISON)>0){this.hp=Math.max(0,this.hp-this.effects[EFF.POISON]);this.effects[EFF.POISON]=Math.max(0,this.effects[EFF.POISON]-1);if(!this.isAlive)return;}
+    if(this.getE(EFF.RITUAL)>0)this.addE(EFF.STR,this.effects[EFF.RITUAL]);
+    const i=this.curIntent();if(i.action)i.action(this,player,ctx);
+    this._t++;
+  }
+  endPTurn(){
+    for(const e of[EFF.VUL,EFF.WEAK])if(this.effects[e]>0)this.effects[e]--;
+    this.block=0;
+  }
+  takeDamage(amt){
+    const bl=Math.min(this.block,amt);this.block=Math.max(0,this.block-amt);
+    const hp=Math.max(0,amt-bl);this.hp=Math.max(0,this.hp-hp);return hp;
+  }
+  gainBlock(v){this.block+=Math.max(0,v);}
+}
+
+// monster factories
+function mCultist(){
+  const m=new Monster('Cultist',[48,54],'#64329a');
+  m._pat=[
+    {type:INT.BUFF,value:0,action:(s,p,c)=>{s.addE(EFF.RITUAL,3);c.log('Incantation! Ritual+3.');}},
+    {type:INT.ATK,value:6,action:(s,p,c)=>c.dealDamage(6,s,p)},
+    {type:INT.ATK,value:6,action:(s,p,c)=>c.dealDamage(6,s,p)},
+    {type:INT.ATK,value:6,action:(s,p,c)=>c.dealDamage(6,s,p)},
+  ];return m;
+}
+function mJawWorm(){
+  const m=new Monster('Jaw Worm',[40,44],'#508c3c');
+  m._pat=[
+    {type:INT.ATK,value:11,action:(s,p,c)=>{c.dealDamage(11,s,p);c.log('Chomp!');}},
+    {type:INT.BUFF,value:0,action:(s,p,c)=>{s.addE(EFF.STR,3);s.gainBlock(6);c.log('Bellow! +3Str +6Blk');}},
+    {type:INT.ATK,value:7,action:(s,p,c)=>{c.dealDamage(7,s,p);s.gainBlock(5);}},
+    {type:INT.ATK,value:7,action:(s,p,c)=>{c.dealDamage(7,s,p);s.gainBlock(5);}},
+  ];return m;
+}
+function mLouse(){
+  const m=new Monster('Green Louse',[10,15],'#3ca03c');
+  m._pat=[
+    {type:INT.ATK,value:6,action:(s,p,c)=>{const d=rand(5,7);c.dealDamage(d,s,p);}},
+    {type:INT.DEBUF,value:1,action:(s,p,c)=>{c.applyEff(p,EFF.WEAK,1);c.log('Spit Web! Weak.');}},
+    {type:INT.ATK,value:6,action:(s,p,c)=>c.dealDamage(rand(5,7),s,p)},
+    {type:INT.ATK,value:6,action:(s,p,c)=>c.dealDamage(rand(5,7),s,p)},
+  ];return m;
+}
+function mAcid(){
+  const m=new Monster('Acid Slime',[65,69],'#64b43c');
+  m._pat=[
+    {type:INT.DEBUF,value:7,action:(s,p,c)=>{c.dealDamage(7,s,p);p.discardPile.push(CF.slimed());c.log('Corrosive spit! Slimed.');}},
+    {type:INT.ATK,value:10,action:(s,p,c)=>c.dealDamage(10,s,p)},
+    {type:INT.DEBUF,value:7,action:(s,p,c)=>{c.dealDamage(7,s,p);p.discardPile.push(CF.slimed());}},
+    {type:INT.ATK,value:10,action:(s,p,c)=>c.dealDamage(10,s,p)},
+  ];return m;
+}
+function mFungal(){
+  const m=new Monster('Fungal Beast',[22,28],'#a07832');
+  m._pat=[
+    {type:INT.ATK,value:6,action:(s,p,c)=>c.dealDamage(6,s,p)},
+    {type:INT.BUFF,value:0,action:(s,p,c)=>{s.addE(EFF.STR,3);c.log('Grows! +3 Str.');}},
+    {type:INT.ATK,value:6,action:(s,p,c)=>c.dealDamage(6,s,p)},
+    {type:INT.ATK,value:6,action:(s,p,c)=>c.dealDamage(6,s,p)},
+  ];return m;
+}
+function mGremlin(){
+  const m=new Monster('Gremlin Nob',[82,86],'#a05032');
+  m._pat=[
+    {type:INT.BUFF,value:0,action:(s,p,c)=>{s.addE(EFF.STR,2);c.log('Bellow! +2 Str.');}},
+    {type:INT.ATK,value:14,action:(s,p,c)=>c.dealDamage(14,s,p)},
+    {type:INT.ATK,value:6,action:(s,p,c)=>{c.dealDamage(6,s,p);c.applyEff(p,EFF.WEAK,2);}},
+    {type:INT.ATK,value:14,action:(s,p,c)=>c.dealDamage(14,s,p)},
+  ];return m;
+}
+function mBook(){
+  const m=new Monster('Book of Stabbing',[160,168],'#3c3ca0');
+  m._pat=[
+    {type:INT.ATK,value:9,action:(s,p,c)=>{const n=rand(2,5);for(let i=0;i<n;i++)c.dealDamage(3,s,p);c.log(`Stabs ${n}x!`);}},
+    {type:INT.ATK,value:9,action:(s,p,c)=>{const n=rand(2,5);for(let i=0;i<n;i++)c.dealDamage(3,s,p);}},
+    {type:INT.ATK,value:21,action:(s,p,c)=>{c.dealDamage(21,s,p);c.log('Mega stab 21!');}},
+  ];return m;
+}
+function mLagavulin(){
+  const m=new Monster('Lagavulin',[112,116],'#b48c32');
+  m._pat=[
+    {type:INT.SLEEP,value:0,action:(s,p,c)=>c.log('Lagavulin sleeps...')},
+    {type:INT.SLEEP,value:0,action:(s,p,c)=>c.log('...zzz...')},
+    {type:INT.SLEEP,value:0,action:(s,p,c)=>c.log('WAKES UP!')},
+    {type:INT.DEBUF,value:0,action:(s,p,c)=>{c.applyEff(p,EFF.STR,-2);c.applyEff(p,EFF.DEX,-2);c.log('Debilitate! -2Str -2Dex.');}},
+    {type:INT.ATK,value:18,action:(s,p,c)=>c.dealDamage(18,s,p)},
+    {type:INT.ATK,value:18,action:(s,p,c)=>c.dealDamage(18,s,p)},
+  ];return m;
+}
+function mSentries(){
+  return[0,1,2].map(i=>{
+    const m=new Monster(`Sentry ${i+1}`,[38,42],'#8c8cb4');
+    m._t=i;
+    m._pat=[
+      {type:INT.ATK,value:9,action:(s,p,c)=>{c.dealDamage(9,s,p);c.log('Sentry beam!');}},
+      {type:INT.ATK,value:18,action:(s,p,c)=>{c.dealDamage(18,s,p);p.discardPile.push(CF.wound());p.discardPile.push(CF.wound());c.log('Sentry bolt! +2 Wounds.');}},
+    ];return m;
+  });
+}
+function mGuardian(){
+  const m=new Monster('The Guardian',[240,260],'#c8c832');
+  m._mode='def';
+  const defP=[
+    {type:INT.ATK,value:5,action:(s,p,c)=>{c.dealDamage(5,s,p);c.applyEff(p,EFF.WEAK,2);c.applyEff(p,EFF.VUL,2);c.log('Vent Steam! Weak+Vuln.');}},
+    {type:INT.ATK,value:20,action:(s,p,c)=>{for(let i=0;i<4;i++)c.dealDamage(5,s,p);c.log('Whirlwind! 4×5.');}},
+    {type:INT.ATK,value:5,action:(s,p,c)=>{c.dealDamage(5,s,p);c.applyEff(p,EFF.WEAK,2);c.applyEff(p,EFF.VUL,2);}},
+  ];
+  const offP=[
+    {type:INT.ATK,value:36,action:(s,p,c)=>{c.dealDamage(36,s,p);c.log('Fierce Bash! 36!');}},
+    {type:INT.ATK,value:27,action:(s,p,c)=>{for(let i=0;i<3;i++)c.dealDamage(9,s,p);c.log('Roll! 3×9.');}},
+    {type:INT.ATK,value:36,action:(s,p,c)=>c.dealDamage(36,s,p)},
+  ];
+  m._pat=defP;
+  const orig=m.takeDamage.bind(m);
+  m.takeDamage=function(amt){
+    const r=orig(amt);
+    if(this._mode==='def'&&this.hp<this.maxHp*0.5){
+      this._mode='off';this._pat=offP;this.gainBlock(20);this._t=0;
+    }
+    return r;
+  };
+  return m;
+}
+
+const ENC1=[()=>[mCultist()],()=>[mJawWorm()],()=>[mLouse(),mLouse()],()=>[mAcid()],()=>[mFungal(),mFungal()]];
+const ENC2=[()=>[mGremlin()],()=>[mBook()],()=>[mJawWorm(),mLouse()],()=>[mAcid(),mAcid()]];
+const ELITE=[()=>[mLagavulin()],()=>mSentries()];
+function randEnc(floor){const p=floor===1?ENC1:ENC2;return p[rand(0,p.length-1)]();}
+function randElite(){return ELITE[rand(0,ELITE.length-1)]();}
+
+// ── Player ────────────────────────────────────────────────────────────────────
+class Player{
+  constructor(){
+    this.maxHp=80;this.hp=80;this.block=0;this.effects={};this.gold=99;
+    this.energy=3;this.maxEnergy=3;
+    const d=starterDeck();shuffle(d);
+    this.drawPile=d;this.hand=[];this.discardPile=[];this.exhaustPile=[];
+  }
+  get isAlive(){return this.hp>0;}
+  getE(n,d=0){return this.effects[n]||d;}
+  addE(n,v){this.effects[n]=(this.effects[n]||0)+v;}
+  takeDamage(amt){
+    const bl=Math.min(this.block,amt);this.block=Math.max(0,this.block-amt);
+    const hp=Math.max(0,amt-bl);this.hp=Math.max(0,this.hp-hp);return hp;
+  }
+  heal(v){this.hp=Math.min(this.maxHp,this.hp+v);}
+  gainBlock(v){this.block+=Math.max(0,v);}
+  drawCards(n=1){
+    for(let i=0;i<n;i++){
+      if(this.hand.length>=10)break;
+      if(!this.drawPile.length){if(!this.discardPile.length)break;this.drawPile=[...this.discardPile];this.discardPile=[];shuffle(this.drawPile);}
+      if(this.drawPile.length)this.hand.push(this.drawPile.shift());
+    }
+  }
+  discardHand(){this.discardPile.push(...this.hand);this.hand=[];}
+  startTurn(){
+    if(!this.effects[EFF.BARR])this.block=0;
+    this.energy=this.maxEnergy;
+    if(this.effects[EFF.DEMON]>0)this.addE(EFF.STR,this.effects[EFF.DEMON]);
+  }
+  endTurn(){
+    this.discardHand();
+    if(this.effects[EFF.METAL]>0)this.gainBlock(this.effects[EFF.METAL]);
+    if(this.effects[EFF.POISON]>0){this.hp=Math.max(0,this.hp-this.effects[EFF.POISON]);this.effects[EFF.POISON]=Math.max(0,this.effects[EFF.POISON]-1);}
+    for(const e of[EFF.VUL,EFF.WEAK])if(this.effects[e]>0)this.effects[e]--;
+  }
+}
+
+// ── Combat ────────────────────────────────────────────────────────────────────
+class Combat{
+  constructor(player,monsters){
+    this.player=player;this.monsters=[...monsters];
+    this.phase='player';this.turn=1;
+    this.selCard=null;this.target=null;this.noMore=false;this.tempStr=0;
+    this._log=[];
+  }
+  log(m){this._log.push(m);if(this._log.length>20)this._log.shift();}
+  start(){this.log('=== Combat begins! ===');this._startPTurn();}
+  _startPTurn(){
+    this.phase='player';this.noMore=false;this.tempStr=0;
+    this.player.startTurn();this.player.drawCards(5);
+    this.log(`— Turn ${this.turn}: Your turn —`);
+  }
+  endPTurn(){
+    if(this.phase!=='player')return;
+    if(this.tempStr>0)this.player.addE(EFF.STR,-this.tempStr);
+    this.player.endTurn();this.phase='monster';
+    this._runMonsters();
+  }
+  _runMonsters(){
+    for(const m of this.monsters){
+      if(!m.isAlive)continue;
+      m.takeTurn(this.player,this);
+      if(!this.player.isAlive){this._end(false);return;}
+    }
+    for(const m of this.monsters)m.endPTurn();
+    this.monsters=this.monsters.filter(m=>m.isAlive);
+    if(!this.monsters.length){this._end(true);return;}
+    this.turn++;this._startPTurn();
+  }
+  _end(v){this.phase=v?'victory':'defeat';this.log(v?'=== You won! ===':'=== Defeat... ===');}
+  selectCard(card){
+    if(this.phase!=='player'||!card.canPlay(this.player.energy)||this.noMore)return false;
+    this.selCard=card;
+    if(!card.needsTarget||card.hitsAll){this.target=null;this._play();}
+    return true;
+  }
+  selectTarget(m){
+    if(this.selCard&&this.monsters.includes(m)&&m.isAlive){this.target=m;this._play();}
+  }
+  _play(){
+    const card=this.selCard;this.selCard=null;
+    this.log('Playing: '+card.name);
+    const idx=this.player.hand.indexOf(card);
+    if(idx!==-1)this.player.hand.splice(idx,1);
+    card.play(this);
+    if(card.kind==='attack'&&this.player.getE(EFF.RAGE)>0)this.player.gainBlock(this.player.getE(EFF.RAGE));
+    if(card.exhausts)this.player.exhaustPile.push(card);
+    else this.player.discardPile.push(card);
+    this.target=null;
+    this.monsters=this.monsters.filter(m=>m.isAlive);
+    if(!this.monsters.length)this._end(true);
+  }
+  dealDamage(base,att,tgt){
+    let d=base+(att.getE?att.getE(EFF.STR,0):0);
+    if(att.effects&&att.effects[EFF.WEAK]>0)d=Math.floor(d*0.75);
+    if(tgt.effects&&tgt.effects[EFF.VUL]>0)d=Math.floor(d*1.5);
+    return tgt.takeDamage(Math.max(0,d));
+  }
+  gainBlock(base,ent){ent.gainBlock(Math.max(0,base+(ent.getE?ent.getE(EFF.DEX,0):0)));}
+  applyEff(ent,n,v){if(ent.addE)ent.addE(n,v);}
+  draw(n){if(!this.noMore)this.player.drawCards(n);}
+  exhaust(card){
+    const i=this.player.hand.indexOf(card);if(i!==-1)this.player.hand.splice(i,1);
+    this.player.exhaustPile.push(card);
+    if(this.player.getE(EFF.FNP)>0)this.player.gainBlock(this.player.getE(EFF.FNP));
+  }
+}
+
+// ── Dungeon ───────────────────────────────────────────────────────────────────
+const RT={START:'start',MON:'mon',ELITE:'elite',REST:'rest',GOLD:'gold',SHOP:'shop',BOSS:'boss'};
+const RTYPE={
+  start: {icon:'S',color:'#64c864'},mon:{icon:'M',color:'#c85050'},
+  elite: {icon:'E',color:'#c832c8'},rest:{icon:'R',color:'#5094dc'},
+  gold:  {icon:'$',color:'#d7af37'},shop:{icon:'P',color:'#50c896'},
+  boss:  {icon:'B',color:'#dc3232'},
+};
+
+class Room{
+  constructor(kind,col,row){this.id=uid();this.kind=kind;this.col=col;this.row=row;this.visited=false;this.children=[];}
+  get icon(){return RTYPE[this.kind]?.icon||'?';}
+  get color(){return RTYPE[this.kind]?.color||C.GRAY;}
+}
+
+class Dungeon{
+  constructor(floor=1){
+    this.floor=floor;this.ROWS=8;this.COLS=3;
+    this.grid=[];this.start=null;this.boss=null;this.current=null;
+    this._gen();
+  }
+  _pickKind(r){
+    if(r===0)return RT.START;if(r===this.ROWS-1)return RT.BOSS;
+    return r<=this.ROWS/2?wRand({[RT.MON]:70,[RT.REST]:15,[RT.GOLD]:15}):wRand({[RT.MON]:45,[RT.ELITE]:25,[RT.REST]:15,[RT.SHOP]:15});
+  }
+  _gen(){
+    const{ROWS,COLS}=this;
+    this.grid=Array.from({length:ROWS},(_,r)=>Array.from({length:COLS},(_,c)=>new Room(this._pickKind(r),c,r)));
+    const sc=Math.floor(COLS/2);
+    this.grid[0]=Array(COLS).fill(null);this.grid[ROWS-1]=Array(COLS).fill(null);
+    this.grid[0][sc]=new Room(RT.START,sc,0);
+    this.grid[ROWS-1][sc]=new Room(RT.BOSS,sc,ROWS-1);
+    this.start=this.grid[0][sc];this.boss=this.grid[ROWS-1][sc];
+    for(let r=0;r<ROWS-1;r++){
+      for(let c=0;c<COLS;c++){
+        const room=this.grid[r][c];if(!room)continue;
+        const cands=[...new Set([Math.max(0,c-1),c,Math.min(COLS-1,c+1)])];
+        const n=(r===0||r===ROWS-2)?1:rand(1,2);
+        for(const nc of sample(cands,Math.min(n,cands.length))){
+          const t=this.grid[r+1][nc];if(t&&!room.children.includes(t))room.children.push(t);
+        }
+      }
+    }
+    for(let c=0;c<COLS;c++){const r=this.grid[ROWS-2][c];if(r&&!r.children.includes(this.boss))r.children.push(this.boss);}
+    this.current=this.start;this.start.visited=true;
+  }
+  avail(){return this.current?this.current.children:[];}
+  enter(r){r.visited=true;this.current=r;}
+  *all(){for(const row of this.grid)for(const r of row)if(r)yield r;}
+  pos(room,mx,my,mw,mh){
+    return{x:mx+(room.col+1)*mw/(this.COLS+1),y:my+mh-(room.row+1)*mh/(this.ROWS+1)};
+  }
+}
+
+// ── Renderer ──────────────────────────────────────────────────────────────────
+class Renderer{
+  constructor(cv){
+    this.cv=cv;this.g=cv.getContext('2d');
+    this.menuBtn=null;this.roomAreas=new Map();
+    this.cardAreas=[];this.monAreas=new Map();this.endBtn=null;
+    this.rwdAreas=[];this.rwdSkip=null;this.restBtn=null;this.goBtn=null;
+  }
+  clr(){this.g.fillStyle=C.BG;this.g.fillRect(0,0,VW,VH);}
+  rr(x,y,w,h,r,fill,stroke,sw=1.5){
+    const g=this.g;g.beginPath();g.roundRect(x,y,w,h,r);
+    if(fill){g.fillStyle=fill;g.fill();}
+    if(stroke){g.strokeStyle=stroke;g.lineWidth=sw;g.stroke();}
+  }
+  txt(s,x,y,font,col,align='left',base='alphabetic'){
+    const g=this.g;g.font=font;g.fillStyle=col;g.textAlign=align;g.textBaseline=base;g.fillText(s,x,y);
+  }
+  bar(x,y,w,h,v,m,fg){
+    this.rr(x,y,w,h,3,C.DGRAY,C.GRAY,1);
+    if(m>0&&v>0)this.rr(x,y,Math.max(0,(v/m)*w),h,3,fg,null);
+    this.txt(`${v}/${m}`,x+w/2,y+h/2,'bold 11px sans-serif',C.WHITE,'center','middle');
+  }
+  btn(label,x,y,w,h,bg,hov=false,active=true){
+    const col=!active?'#28283a':hov?lerpC(bg,'#ffffff',0.15):bg;
+    this.rr(x,y,w,h,8,col,active?C.LGRAY:C.GRAY,2);
+    this.txt(label,x+w/2,y+h/2,'bold 17px sans-serif',active?C.WHITE:C.GRAY,'center','middle');
+  }
+  efx(ent,x,y,maxW=220){
+    let cx=x;
+    for(const[n,v]of Object.entries(ent.effects)){
+      if(!v||cx-x>maxW)break;
+      const col=EFF_COL[n]||C.GRAY;
+      this.rr(cx,y,60,18,3,col,null);
+      this.txt(`${EFF_LBL[n]||n}:${v}`,cx+30,y+9,'9px sans-serif',C.WHITE,'center','middle');
+      cx+=64;
+    }
+  }
+  card(card,x,y,hov=false,sel=false,gray=false){
+    const W=hov?Math.round(CW*1.06):CW,H=hov?Math.round(CH*1.06):CH,dy=hov?-20:0,ry=y+dy;
+    const g=this.g;
+    g.save();g.shadowBlur=8;g.shadowColor='rgba(0,0,0,0.5)';
+    this.rr(x+3,ry+3,W,H,8,'rgba(0,0,0,0.3)',null);g.restore();
+    const bc=gray?C.DGRAY:card.color;
+    this.rr(x,ry,W,H,8,bc,sel?C.YELLOW:C.LGRAY,sel?3:1.5);
+    // header
+    g.save();g.beginPath();g.roundRect(x+2,ry+2,W-4,30,6);g.clip();
+    g.fillStyle=lerpC(bc,'#ffffff',0.2);g.fillRect(x+2,ry+2,W-4,30);g.restore();
+    // cost
+    g.beginPath();g.arc(x+16,ry+16,12,0,Math.PI*2);
+    g.fillStyle=card.cost<0?C.PURPLE:C.YELLOW;g.fill();
+    g.strokeStyle=C.WHITE;g.lineWidth=1.5;g.stroke();
+    this.txt(card.cost<0?'X':String(card.cost),x+16,ry+16,'bold 12px sans-serif','#000','center','middle');
+    // name
+    const nc=gray?C.GRAY:C.WHITE;
+    this.txt(card.name,x+W/2,ry+16,'10px sans-serif',nc,'center','middle');
+    // divider
+    g.beginPath();g.moveTo(x+6,ry+34);g.lineTo(x+W-6,ry+34);g.strokeStyle=C.GRAY;g.lineWidth=1;g.stroke();
+    // desc
+    card.desc.split('\n').forEach((l,i)=>this.txt(l,x+W/2,ry+45+i*15,'10px sans-serif',nc,'center','top'));
+    // type
+    this.txt(card.kind.toUpperCase(),x+W/2,ry+H-10,'8px sans-serif',lerpC(bc,C.LGRAY,0.5),'center','middle');
+    return{x,y:ry,w:W,h:H};
+  }
+
+  // MENU
+  renderMenu(mx,my){
+    this.clr();
+    this.txt('G R I M D E C K',VW/2,200,'bold 60px serif',C.GOLD,'center');
+    this.txt('A Dungeon Crawler Card Game',VW/2,268,'22px sans-serif',C.LGRAY,'center');
+    const b={x:VW/2-135,y:340,w:270,h:58};
+    this.btn('Begin Your Journey',b.x,b.y,b.w,b.h,C.DGRAY,inR(b,mx,my));
+    this.menuBtn=b;
+    this.txt('Click cards to play  •  Click monster to target  •  End Turn to pass',VW/2,488,'13px sans-serif',C.GRAY,'center');
+  }
+
+  // DUNGEON
+  renderDungeon(game,mx,my){
+    this.clr();
+    const{dungeon,player}=game;
+    const MX=70,MY=50,MW=690,MH=640;
+    this.rr(MX,MY,MW,MH,10,C.PANEL,C.DGRAY,2);
+    this.txt(`Floor ${dungeon.floor}  —  The Dungeon`,MX+MW/2,MY+28,'bold 22px sans-serif',C.GOLD,'center');
+    const avail=new Set(dungeon.avail());this.roomAreas.clear();
+    const pos=new Map();
+    for(const r of dungeon.all()){const p=dungeon.pos(r,MX+20,MY+40,MW-40,MH-60);pos.set(r.id,p);}
+    // lines
+    const g=this.g;
+    for(const r of dungeon.all()){
+      const p=pos.get(r.id);
+      for(const ch of r.children){
+        const cp=pos.get(ch.id);
+        g.beginPath();g.strokeStyle=r.visited?C.LGRAY:C.DGRAY;g.lineWidth=2;
+        g.moveTo(p.x,p.y);g.lineTo(cp.x,cp.y);g.stroke();
+      }
+    }
+    // rooms
+    const t=(Math.sin(Date.now()/400)+1)/2;
+    for(const r of dungeon.all()){
+      const{x,y}=pos.get(r.id),R=22;
+      const cur=r===dungeon.current,av=avail.has(r);
+      if(cur){g.beginPath();g.arc(x,y,R+5,0,Math.PI*2);g.fillStyle=C.YELLOW;g.fill();}
+      else if(av){g.beginPath();g.arc(x,y,R+3,0,Math.PI*2);g.fillStyle=lerpC(r.color,'#ffffff',t*0.35);g.fill();}
+      g.beginPath();g.arc(x,y,R,0,Math.PI*2);
+      g.fillStyle=(r.visited||av)?r.color:C.DGRAY;g.fill();
+      g.strokeStyle=C.LGRAY;g.lineWidth=2;g.stroke();
+      this.txt(r.icon,x,y,'bold 14px sans-serif',C.WHITE,'center','middle');
+      this.roomAreas.set(r,{x,y,r:R+8});
+    }
+    // side panel
+    const PX=780,PY=50,PW=450,PH=640;
+    this.rr(PX,PY,PW,PH,10,C.PANEL,C.DGRAY,2);
+    this.txt('The Wanderer',PX+PW/2,PY+28,'bold 22px sans-serif',C.WHITE,'center');
+    g.beginPath();g.moveTo(PX+20,PY+46);g.lineTo(PX+PW-20,PY+46);g.strokeStyle=C.GRAY;g.lineWidth=1;g.stroke();
+    this.txt('HP',PX+25,PY+72,'15px sans-serif',C.LGRAY);
+    this.bar(PX+62,PY+60,PW-80,22,player.hp,player.maxHp,C.RED);
+    this.txt(`Gold:  ${player.gold}`,PX+25,PY+110,'15px sans-serif',C.GOLD);
+    const tot=player.drawPile.length+player.hand.length+player.discardPile.length+player.exhaustPile.length;
+    this.txt(`Deck:  ${tot} cards`,PX+25,PY+142,'15px sans-serif',C.LGRAY);
+    // legend
+    let ly=PY+188;this.txt('Room Legend',PX+25,ly,'bold 15px sans-serif',C.LGRAY);
+    [['start','S','Start'],['mon','M','Monster'],['elite','E','Elite'],['rest','R','Rest'],['gold','$','Treasure'],['shop','P','Shop'],['boss','B','Boss']].forEach(([k,ic,lb],i)=>{
+      const col=RTYPE[k]?.color||C.GRAY,iy=ly+24+i*28;
+      g.beginPath();g.arc(PX+35,iy+7,9,0,Math.PI*2);g.fillStyle=col;g.fill();
+      this.txt(`${ic}  ${lb}`,PX+50,iy+7,'13px sans-serif',C.WHITE,'left','middle');
+    });
+    if(avail.size>0)this.txt('Click a glowing room to enter.',PX+PW/2,PY+PH-25,'13px sans-serif',C.YELLOW,'center');
+  }
+
+  // COMBAT
+  renderCombat(game,mx,my){
+    this.clr();
+    const{combat,player}=game;
+    // top bar
+    this.rr(0,0,VW,50,0,C.PANEL,null);
+    this.txt(`Turn ${combat.turn}`,20,25,'15px sans-serif',C.LGRAY,'left','middle');
+    this.txt('Energy:',VW/2-100,25,'13px sans-serif',C.GRAY,'left','middle');
+    for(let i=0;i<player.maxEnergy;i++){
+      const ox=VW/2-30+i*30;
+      this.g.beginPath();this.g.arc(ox,25,12,0,Math.PI*2);
+      this.g.fillStyle=i<player.energy?C.YELLOW:C.DGRAY;this.g.fill();
+      this.g.strokeStyle=C.LGRAY;this.g.lineWidth=1.5;this.g.stroke();
+      this.txt(i<player.energy?String(i+1):'·',ox,25,'bold 10px sans-serif','#000','center','middle');
+    }
+    this.txt(`Draw:${player.drawPile.length}  Disc:${player.discardPile.length}  Exh:${player.exhaustPile.length}`,VW-215,25,'12px sans-serif',C.LGRAY,'left','middle');
+    if(combat.phase==='monster')this.txt('⚔ ENEMY TURN',VW/2,25,'bold 17px sans-serif',C.RED,'center','middle');
+    // player
+    this._drawPlayer(player);
+    // monsters
+    this.monAreas.clear();
+    const ms=combat.monsters,n=ms.length;
+    ms.forEach((m,i)=>{
+      const cx=950+(i-Math.floor(n/2))*210+(n%2===0?105:0);
+      const area=this._drawMon(m,cx,110,combat,mx,my,!!combat.selCard);
+      this.monAreas.set(m,area);
+    });
+    // log
+    this.rr(350,55,390,200,6,C.PANEL,C.DGRAY,1);
+    combat._log.slice(-8).forEach((l,i,a)=>{
+      this.txt(l,358,70+i*23,'11px sans-serif',i===a.length-1?C.WHITE:C.LGRAY);
+    });
+    // hand
+    this._drawHand(player,combat,mx,my);
+    // end turn
+    const eb={x:VW-168,y:VH-70,w:148,h:48};
+    const active=combat.phase==='player';
+    this.btn('End Turn  [E]',eb.x,eb.y,eb.w,eb.h,C.DRED,inR(eb,mx,my)&&active,active);
+    this.endBtn=eb;
+    // overlay
+    if(combat.phase==='victory'||combat.phase==='defeat'){
+      this.g.fillStyle='rgba(0,0,0,0.65)';this.g.fillRect(0,0,VW,VH);
+      if(combat.phase==='victory'){
+        this.txt('VICTORY!',VW/2,VH/2-30,'bold 68px serif',C.GOLD,'center');
+        this.txt('Click anywhere to continue',VW/2,VH/2+40,'20px sans-serif',C.LGRAY,'center');
+      }else{
+        this.txt('DEFEAT',VW/2,VH/2-30,'bold 68px serif',C.RED,'center');
+        this.txt('Click to return to menu',VW/2,VH/2+40,'20px sans-serif',C.LGRAY,'center');
+      }
+    }
+  }
+  _drawPlayer(p){
+    const cx=120,cy=110;
+    this.rr(cx-58,cy+50,28,40,4,C.DBLUE,C.LGRAY,1.5);
+    this.rr(cx-28,cy+10,56,90,6,'#3c5080',null);
+    const g=this.g;g.beginPath();g.arc(cx,cy-10,28,0,Math.PI*2);g.fillStyle='#5a7ab0';g.fill();
+    g.beginPath();g.moveTo(cx+28,cy+20);g.lineTo(cx+60,cy-20);g.strokeStyle=C.LGRAY;g.lineWidth=4;g.stroke();
+    this.txt('HP',30,276,'13px sans-serif',C.LGRAY);
+    this.bar(55,263,200,22,p.hp,p.maxHp,C.RED);
+    if(p.block)this.txt(`🛡 ${p.block}`,30,304,'15px sans-serif',C.BLUE);
+    this.efx(p,30,322,250);
+  }
+  _drawMon(m,cx,cy,combat,mx,my,sel){
+    const W=80,H=100,rx=cx-W/2,ry=cy;
+    const t=(Math.sin(Date.now()/300)+1)/2;
+    if(sel){this.rr(rx-5,ry-5,W+10,H+10,12,lerpC(m.color,'#ffff32',t*0.5),null);}
+    this.rr(rx,ry,W,H,8,m.color,sel?C.YELLOW:C.DGRAY,sel?2:1);
+    const g=this.g;
+    [[cx-18,ry+30],[cx+18,ry+30]].forEach(([ex,ey])=>{
+      g.beginPath();g.arc(ex,ey,8,0,Math.PI*2);g.fillStyle=C.RED;g.fill();
+      g.beginPath();g.arc(ex,ey,4,0,Math.PI*2);g.fillStyle='#000';g.fill();
+    });
+    this.txt(m.name,cx,ry-14,'12px sans-serif',C.WHITE,'center');
+    this.bar(rx-10,ry+H+6,W+20,16,m.hp,m.maxHp,C.RED);
+    if(m.block)this.txt(`🛡 ${m.block}`,cx,ry+H+32,'12px sans-serif',C.BLUE,'center');
+    // intent
+    const it=m.curIntent();
+    const iSym=INT_SYM[it.type]||'?',iCol=INT_COL[it.type]||C.GRAY;
+    let iLabel=iSym;
+    if(it.type===INT.ATK&&it.value)iLabel=`⚔ ${it.value+m.getE(EFF.STR,0)}`;
+    this.rr(cx-38,ry-62,76,34,8,C.PANEL,iCol,2);
+    this.txt(iLabel,cx,ry-45,'bold 13px sans-serif',iCol,'center','middle');
+    this.efx(m,rx-10,ry+H+48,W+20);
+    return{x:rx-10,y:ry-70,w:W+20,h:H+80};
+  }
+  _drawHand(p,combat,mx,my){
+    const n=p.hand.length;if(!n)return;
+    const totalW=n*CW+(n-1)*12,sx=(VW-totalW)/2,sy=VH-CH-16;
+    this.cardAreas=[];
+    p.hand.forEach((card,i)=>{
+      const cx=sx+i*(CW+12);
+      const hov=mx>=cx&&mx<=cx+CW&&my>=sy&&my<=sy+CH;
+      const gray=!card.canPlay(p.energy)||combat.phase!=='player';
+      const area=this.card(card,cx,sy,hov,card===combat.selCard,gray);
+      this.cardAreas.push({card,...area});
+    });
+  }
+
+  // REWARD
+  renderReward(game,mx,my){
+    this.clr();
+    this.txt('Choose a Card Reward',VW/2,80,'bold 50px serif',C.GOLD,'center');
+    this.txt('Click a card to add it to your deck, or Skip.',VW/2,138,'17px sans-serif',C.LGRAY,'center');
+    const cards=game.rwdCards,sp=CW+28,sx=VW/2-sp*(cards.length/2)+sp/2-CW/2;
+    this.rwdAreas=[];
+    cards.forEach((card,i)=>{
+      const cx=sx+i*sp,hov=mx>=cx&&mx<=cx+CW&&my>=200&&my<=200+CH;
+      const a=this.card(card,cx,200,hov);this.rwdAreas.push({card,...a});
+    });
+    const sk={x:VW/2-90,y:440,w:180,h:46};
+    this.btn('Skip Reward',sk.x,sk.y,sk.w,sk.h,C.DGRAY,inR(sk,mx,my));
+    this.rwdSkip=sk;
+  }
+
+  // REST
+  renderRest(game,mx,my){
+    this.clr();
+    const p=game.player;
+    this.txt('Rest Site',VW/2,100,'bold 50px serif',C.GOLD,'center');
+    const fcx=VW/2,fcy=240;
+    for(let i=0;i<5;i++){
+      const h=40+i*8,col=lerpC('#dc4a1e','#dcc832',i/5);
+      this.g.beginPath();
+      this.g.moveTo(fcx+(-20+i*4),fcy+20);this.g.lineTo(fcx,fcy-h+i*5);this.g.lineTo(fcx+(20-i*4),fcy+20);
+      this.g.closePath();this.g.fillStyle=col;this.g.fill();
+    }
+    const ha=Math.round(p.maxHp*0.3),nhp=Math.min(p.maxHp,p.hp+ha);
+    const rb={x:VW/2-190,y:330,w:380,h:58};
+    this.btn(`Rest  (+${ha} HP  →  ${nhp}/${p.maxHp})`,rb.x,rb.y,rb.w,rb.h,C.DGREEN,inR(rb,mx,my));
+    this.restBtn=rb;
+  }
+
+  // GAME OVER
+  renderGameOver(mx,my){
+    this.g.fillStyle='#080000';this.g.fillRect(0,0,VW,VH);
+    this.txt('YOU DIED',VW/2,240,'bold 72px serif',C.RED,'center');
+    this.txt('The dungeon claims another soul...',VW/2,320,'19px sans-serif',C.GRAY,'center');
+    const b={x:VW/2-130,y:400,w:260,h:54};
+    this.btn('Try Again',b.x,b.y,b.w,b.h,C.DRED,inR(b,mx,my));this.goBtn=b;
+  }
+
+  // VICTORY
+  renderVictory(mx,my){
+    this.g.fillStyle='#000800';this.g.fillRect(0,0,VW,VH);
+    const col=lerpC(C.GOLD,C.WHITE,(Math.sin(Date.now()/500)+1)/2);
+    this.txt('VICTORY!',VW/2,230,'bold 72px serif',col,'center');
+    this.txt('You conquered the dungeon!',VW/2,310,'24px sans-serif',C.WHITE,'center');
+    const b={x:VW/2-130,y:400,w:260,h:54};
+    this.btn('Play Again',b.x,b.y,b.w,b.h,C.DGREEN,inR(b,mx,my));this.goBtn=b;
+  }
+}
+
+// ── Game ──────────────────────────────────────────────────────────────────────
+class Game{
+  constructor(r){this.r=r;this.state='menu';this.player=null;this.dungeon=null;this.combat=null;this.rwdCards=[];this._room=null;}
+  newGame(){this.player=new Player();this.dungeon=new Dungeon(1);this.state='dungeon';}
+  click(vx,vy){
+    const{r,state}=this;
+    if(state==='menu'){if(inR(r.menuBtn,vx,vy))this.newGame();}
+    else if(state==='dungeon')this._cDungeon(vx,vy);
+    else if(state==='combat')this._cCombat(vx,vy);
+    else if(state==='reward')this._cReward(vx,vy);
+    else if(state==='rest')this._cRest(vx,vy);
+    else if(state==='game_over'){if(inR(r.goBtn,vx,vy))this.state='menu';}
+    else if(state==='victory'){if(inR(r.goBtn,vx,vy))this.state='menu';}
+  }
+  key(k){
+    if(this.state==='combat'&&(k==='e'||k==='E'||k==='Enter')){
+      if(this.combat?.phase==='player')this.combat.endPTurn();
+    }
+  }
+  _cDungeon(vx,vy){
+    const av=new Set(this.dungeon.avail());
+    for(const[room,a]of this.r.roomAreas){
+      const dx=vx-a.x,dy=vy-a.y;
+      if(dx*dx+dy*dy<=a.r*a.r&&av.has(room)){
+        this.dungeon.enter(room);this._room=room;this._resolve(room);break;
+      }
+    }
+  }
+  _resolve(room){
+    const k=room.kind;
+    if(k===RT.MON)this._startCombat(randEnc(this.dungeon.floor));
+    else if(k===RT.ELITE)this._startCombat(randElite());
+    else if(k===RT.BOSS)this._startCombat([mGuardian()]);
+    else if(k===RT.REST)this.state='rest';
+    else{this.rwdCards=rewardCards(3);this.state='reward';}
+  }
+  _startCombat(monsters){
+    const p=this.player;
+    p.discardPile.push(...p.hand);p.hand=[];
+    p.drawPile.push(...p.discardPile);p.discardPile=[];
+    shuffle(p.drawPile);p.block=0;
+    this.combat=new Combat(p,monsters);this.combat.start();this.state='combat';
+  }
+  _cCombat(vx,vy){
+    const{combat,r}=this;
+    if(combat.phase==='victory'||combat.phase==='defeat'){
+      if(combat.phase==='victory'){
+        if(this._room?.kind===RT.BOSS)this.state='victory';
+        else{this.rwdCards=rewardCards(3);this.state='reward';}
+      }else this.state='game_over';
+      return;
+    }
+    if(combat.phase!=='player')return;
+    if(inR(r.endBtn,vx,vy)){combat.endPTurn();return;}
+    if(combat.selCard&&combat.selCard.needsTarget){
+      for(const[m,a]of r.monAreas){
+        if(vx>=a.x&&vx<=a.x+a.w&&vy>=a.y&&vy<=a.y+a.h&&m.isAlive){combat.selectTarget(m);return;}
+      }
+      combat.selCard=null;return;
+    }
+    for(const{card,x,y,w,h}of r.cardAreas){
+      if(vx>=x&&vx<=x+w&&vy>=y&&vy<=y+h){combat.selectCard(card);return;}
+    }
+  }
+  _cReward(vx,vy){
+    if(inR(this.r.rwdSkip,vx,vy)){this.state='dungeon';return;}
+    for(const{card,x,y,w,h}of this.r.rwdAreas){
+      if(vx>=x&&vx<=x+w&&vy>=y&&vy<=y+h){this.player.discardPile.push(card);this.state='dungeon';return;}
+    }
+  }
+  _cRest(vx,vy){
+    if(inR(this.r.restBtn,vx,vy)){this.player.heal(Math.round(this.player.maxHp*0.3));this.state='dungeon';}
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+const canvas=document.getElementById('g');
+const renderer=new Renderer(canvas);
+const game=new Game(renderer);
+let mvx=0,mvy=0,_sc=1,_ox=0,_oy=0;
+
+function resize(){
+  const sw=window.innerWidth,sh=window.innerHeight;
+  _sc=Math.min(sw/VW,sh/VH);
+  canvas.width=VW;canvas.height=VH;
+  canvas.style.width=Math.round(VW*_sc)+'px';
+  canvas.style.height=Math.round(VH*_sc)+'px';
+  _ox=(sw-VW*_sc)/2;_oy=(sh-VH*_sc)/2;
+  canvas.style.marginLeft=_ox+'px';canvas.style.marginTop=_oy+'px';
+}
+function toV(cx,cy){return{x:(cx-_ox)/_sc,y:(cy-_oy)/_sc};}
+
+window.addEventListener('resize',resize);resize();
+
+canvas.addEventListener('mousemove',e=>{const v=toV(e.clientX,e.clientY);mvx=v.x;mvy=v.y;});
+canvas.addEventListener('click',e=>{const v=toV(e.clientX,e.clientY);game.click(v.x,v.y);});
+canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0],v=toV(t.clientX,t.clientY);mvx=v.x;mvy=v.y;game.click(v.x,v.y);},{passive:false});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0],v=toV(t.clientX,t.clientY);mvx=v.x;mvy=v.y;},{passive:false});
+window.addEventListener('keydown',e=>game.key(e.key));
+
+function loop(){
+  const s=game.state;
+  if(s==='menu')renderer.renderMenu(mvx,mvy);
+  else if(s==='dungeon')renderer.renderDungeon(game,mvx,mvy);
+  else if(s==='combat')renderer.renderCombat(game,mvx,mvy);
+  else if(s==='reward')renderer.renderReward(game,mvx,mvy);
+  else if(s==='rest')renderer.renderRest(game,mvx,mvy);
+  else if(s==='game_over')renderer.renderGameOver(mvx,mvy);
+  else if(s==='victory')renderer.renderVictory(mvx,mvy);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
