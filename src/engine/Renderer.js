@@ -120,6 +120,7 @@ export class Renderer {
 
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: tex, transparent: true, alphaTest: 0.1, depthWrite: false,
+        fog: true,
       }));
       sprite.scale.set(sz, sz, 1);
       sprite.position.y = cy;
@@ -158,17 +159,8 @@ export class Renderer {
     this.torch.intensity =
       7.5 + Math.sin(this.torchTime * 6.3) * 0.5 + Math.sin(this.torchTime * 11.7) * 0.25;
 
-    const cam = this.camera.position;
     this.enemyGroup.children.forEach(group => {
       if (!group.visible) return;
-      const dist = cam.distanceTo(group.position);
-      // torch-lit: warm dim at close range, dark at distance
-      const t = Math.max(0, Math.min(1, (10 - dist) / 7));
-      group.userData.sprite.material.color.setRGB(
-        (0x10 + Math.round((0x82 - 0x10) * t)) / 255,
-        (0x0c + Math.round((0x6a - 0x0c) * t)) / 255,
-        (0x06 + Math.round((0x48 - 0x06) * t)) / 255,
-      );
     });
 
     this.renderer.render(this.scene, this.camera);
