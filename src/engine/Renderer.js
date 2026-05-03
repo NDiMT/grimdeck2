@@ -162,10 +162,13 @@ export class Renderer {
     this.enemyGroup.children.forEach(group => {
       if (!group.visible) return;
       const dist = cam.distanceTo(group.position);
-      // fade to dark with distance, natural colors at close range
+      // torch-lit: warm dim at close range, dark at distance
       const t = Math.max(0, Math.min(1, (10 - dist) / 7));
-      const v = 0x18 + Math.round((0xb0 - 0x18) * t);
-      group.userData.sprite.material.color.setRGB(v / 255, v / 255, v / 255);
+      group.userData.sprite.material.color.setRGB(
+        (0x10 + Math.round((0x82 - 0x10) * t)) / 255,
+        (0x0c + Math.round((0x6a - 0x0c) * t)) / 255,
+        (0x06 + Math.round((0x48 - 0x06) * t)) / 255,
+      );
     });
 
     this.renderer.render(this.scene, this.camera);
