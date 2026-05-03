@@ -58,12 +58,14 @@ export class Renderer {
       new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_chain.png') }),
       new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_torch.png') }),
       new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_skull.png') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_demon.png') }),
     ];
     const fMats = [
       new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor.png') }),
       new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor2.png') }),
       new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor3.png') }),
       new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor4.png') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor5.png') }),
     ];
 
     const wallGeo = new THREE.PlaneGeometry(TILE, TILE);
@@ -87,7 +89,7 @@ export class Renderer {
             const nx = x + dx, nz = z + dz;
             if (!grid[nz] || grid[nz][nx] !== 0) return;
             const r = Math.random();
-            const mat = r < 0.60 ? wMats[0] : r < 0.80 ? wMats[1] : r < 0.92 ? wMats[2] : wMats[3];
+            const mat = r < 0.55 ? wMats[0] : r < 0.72 ? wMats[1] : r < 0.84 ? wMats[2] : r < 0.93 ? wMats[3] : wMats[4];
             const face = new THREE.Mesh(wallGeo, mat);
             face.position.set(wx + ox, TILE / 2, wz + oz);
             face.rotation.y = rotY;
@@ -95,7 +97,7 @@ export class Renderer {
           });
         } else {
           const fr = Math.random();
-          const fMat = fr < 0.65 ? fMats[0] : fr < 0.80 ? fMats[1] : fr < 0.90 ? fMats[2] : fMats[3];
+          const fMat = fr < 0.60 ? fMats[0] : fr < 0.74 ? fMats[1] : fr < 0.84 ? fMats[2] : fr < 0.93 ? fMats[3] : fMats[4];
           const floor = new THREE.Mesh(pGeo, fMat);
           floor.rotation.x = -Math.PI / 2;
           floor.position.set(wx, 0, wz);
