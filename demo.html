@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>GrimDeck — Demo</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --gold:#c9a84c;--gold-dark:#7a5c1e;
+  --stone:#2a2218;--stone-light:#3d3020;
+  --text:#d4c5a0;--text-dim:#7a6d55;
+  --hud-h:48px;--panel-h:210px;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Georgia,serif;color:var(--text)}
+#app{display:flex;flex-direction:column;width:100vw;height:100vh;height:100dvh}
+
+/* dungeon view */
+#dungeon-view{flex:1;min-height:0;position:relative;background:#000;overflow:hidden}
+#dungeon-canvas{display:block;width:100%;height:100%}
+
+/* enemy overlay */
+#enemy-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-start;padding-top:12px;pointer-events:none}
+#enemy-info{background:rgba(0,0,0,.75);border:1px solid var(--gold-dark);border-radius:6px;
+  padding:8px 16px;text-align:center;min-width:190px}
+#enemy-name{font-size:15px;color:var(--gold);letter-spacing:1px;display:block;margin-bottom:6px}
+#enemy-hp-bar{width:100%;height:6px;background:#1a0000;border-radius:3px;overflow:hidden;margin-bottom:3px}
+#enemy-hp-fill{height:100%;width:100%;background:linear-gradient(90deg,#7a0000,#cc2222);
+  transition:width .3s ease;border-radius:3px}
+#enemy-hp-text{font-size:11px;color:var(--text-dim)}
+#enemy-intent{margin-top:6px;font-size:12px;color:#e08080;background:rgba(0,0,0,.6);padding:3px 10px;border-radius:4px}
+
+/* HUD */
+#hud{height:var(--hud-h);background:linear-gradient(180deg,#0a0805,#000);border-top:1px solid #2a2010;
+  display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0}
+#hud-hp{display:flex;align-items:center;gap:6px;flex:1}
+#health-bar{width:80px;height:8px;background:#1a0000;border-radius:4px;overflow:hidden;border:1px solid #3a0000}
+#health-fill{height:100%;width:80%;background:linear-gradient(90deg,#6b1212,#cc3333);
+  transition:width .4s ease;border-radius:4px}
+#health-text{font-size:11px;color:var(--text-dim);white-space:nowrap}
+#hud-center{font-size:13px;color:var(--gold);letter-spacing:1px}
+#hud-right{display:flex;gap:8px;align-items:center}
+.hud-icon{font-size:12px;color:var(--text-dim)}
+
+/* panels */
+.bottom-panel{height:var(--panel-h);background:#000;border-top:1px solid #1e1810;flex-shrink:0}
+
+/* dpad */
+#controls{display:flex;align-items:center;justify-content:space-between;padding:16px 24px}
+#dpad{display:flex;flex-direction:column;align-items:center;gap:4px}
+.dpad-row{display:flex;align-items:center;gap:4px}
+.dpad-center{width:52px;height:52px}
+.dpad-btn{width:52px;height:52px;background:var(--stone);border:1px solid var(--stone-light);
+  border-radius:8px;color:var(--text);font-size:20px;cursor:pointer;display:flex;
+  align-items:center;justify-content:center;user-select:none;touch-action:none;
+  transition:background .1s,transform .08s;-webkit-user-select:none}
+.dpad-btn:active{background:var(--stone-light);transform:scale(.93)}
+#explore-actions{display:flex;flex-direction:column;gap:8px}
+.action-btn{width:52px;height:52px;background:var(--stone);border:1px solid var(--stone-light);
+  border-radius:8px;font-size:20px;cursor:pointer;touch-action:none;transition:background .1s}
+.action-btn:active{background:var(--stone-light)}
+
+/* combat */
+#combat-controls{display:flex;flex-direction:column;padding:10px 8px 8px;gap:8px}
+#hand{display:flex;gap:6px;justify-content:center;flex:1;overflow-x:auto;padding-bottom:2px}
+
+/* cards */
+.card{flex-shrink:0;width:80px;min-height:110px;background:#12100a;border:1px solid var(--gold-dark);
+  border-radius:8px;padding:6px;cursor:pointer;user-select:none;touch-action:none;
+  display:flex;flex-direction:column;gap:4px;transition:transform .15s,border-color .15s;
+  -webkit-user-select:none}
+.card:active{transform:scale(.94) translateY(-4px)}
+.card.attack{border-color:#6b1a1a;background:linear-gradient(160deg,#1a0a0a,#120808)}
+.card.block{border-color:#1a3a6b;background:linear-gradient(160deg,#080e1a,#060c12)}
+.card.disabled{opacity:.4;cursor:not-allowed}
+.card-cost{width:20px;height:20px;background:#1a1200;border:1px solid var(--gold-dark);border-radius:50%;
+  font-size:11px;color:var(--gold);display:flex;align-items:center;justify-content:center;
+  font-weight:bold;align-self:flex-start}
+.card.attack .card-cost{background:#2a0808;border-color:#8b1a1a;color:#e08080}
+.card.block  .card-cost{background:#08142a;border-color:#1a4a8b;color:#80a8e0}
+.card-name{font-size:11px;color:var(--text);font-weight:bold;text-align:center;line-height:1.2}
+.card-value{font-size:22px;font-weight:bold;text-align:center;line-height:1}
+.card.attack .card-value{color:#e05555}
+.card.block  .card-value{color:#5588e0}
+.card-desc{font-size:9px;color:var(--text-dim);text-align:center;line-height:1.3;margin-top:auto}
+.end-turn-btn{width:100%;height:36px;background:linear-gradient(180deg,#2a1a08,#1a1005);
+  border:1px solid var(--gold-dark);border-radius:6px;color:var(--gold);font-size:13px;
+  letter-spacing:1px;cursor:pointer;font-family:Georgia,serif;touch-action:none;
+  transition:background .1s;flex-shrink:0}
+.end-turn-btn:active{background:linear-gradient(180deg,#3a2a10,#2a1a08)}
+.hidden{display:none!important}
+
+@keyframes flash-red{0%{background-color:rgba(180,0,0,.35)}100%{background-color:transparent}}
+.damage-flash{animation:flash-red .3s ease-out}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="dungeon-view">
+    <canvas id="dungeon-canvas"></canvas>
+    <div id="enemy-overlay" class="hidden">
+      <div id="enemy-info">
+        <span id="enemy-name">Skeleton</span>
+        <div id="enemy-hp-bar"><div id="enemy-hp-fill"></div></div>
+        <span id="enemy-hp-text">30/30</span>
+      </div>
+      <div id="enemy-intent">⚔ Attacks for <span id="enemy-intent-val">8</span></div>
+    </div>
+  </div>
+  <div id="hud">
+    <div id="hud-hp">
+      <div id="health-bar"><div id="health-fill"></div></div>
+      <span id="health-text">80/100</span>
+    </div>
+    <div id="hud-center">Floor <span id="floor-num">1</span></div>
+    <div id="hud-right">
+      <span id="block-text" class="hud-icon">🛡 0</span>
+      <span id="energy-text" class="hud-icon">⚡ 3</span>
+    </div>
+  </div>
+  <div id="controls" class="bottom-panel">
+    <div id="dpad">
+      <div class="dpad-row"><button id="btn-forward" class="dpad-btn">▲</button></div>
+      <div class="dpad-row">
+        <button id="btn-left" class="dpad-btn">◀</button>
+        <div class="dpad-center"></div>
+        <button id="btn-right" class="dpad-btn">▶</button>
+      </div>
+      <div class="dpad-row"><button id="btn-back" class="dpad-btn">▼</button></div>
+    </div>
+    <div id="explore-actions">
+      <button id="btn-minimap" class="action-btn">🗺</button>
+    </div>
+  </div>
+  <div id="combat-controls" class="bottom-panel hidden">
+    <div id="hand"></div>
+    <button id="btn-end-turn" class="end-turn-btn">End Turn</button>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ── Dungeon generator ────────────────────────────────────────────────────────
+
+const ENEMY_NAMES = ['Skeleton','Goblin','Wraith','Zombie','Cultist'];
+
+class Dungeon {
+  constructor(w=22,h=22){
+    this.width=w; this.height=h;
+    this.grid=null; this.rooms=[]; this.startPos=null; this.enemies=[];
+    this.generate();
+  }
+  rand(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+  overlaps(a,b,p=0){
+    return!(a.x+a.w+p<=b.x||b.x+b.w+p<=a.x||a.y+a.h+p<=b.y||b.y+b.h+p<=a.y);
+  }
+  carveRoom(r){
+    for(let z=r.y;z<r.y+r.h;z++)
+      for(let x=r.x;x<r.x+r.w;x++) this.grid[z][x]=0;
+  }
+  connectRooms(a,b){
+    let cx=a.x+Math.floor(a.w/2), cz=a.y+Math.floor(a.h/2);
+    const tx=b.x+Math.floor(b.w/2), tz=b.y+Math.floor(b.h/2);
+    while(cx!==tx){this.grid[cz][cx]=0; cx+=cx<tx?1:-1;}
+    while(cz!==tz){this.grid[cz][cx]=0; cz+=cz<tz?1:-1;}
+  }
+  generate(){
+    this.grid=Array.from({length:this.height},()=>new Array(this.width).fill(1));
+    this.rooms=[];
+    for(let att=0;att<100&&this.rooms.length<12;att++){
+      const rw=this.rand(3,7),rh=this.rand(3,6);
+      const rx=this.rand(1,this.width-rw-1),ry=this.rand(1,this.height-rh-1);
+      const c={x:rx,y:ry,w:rw,h:rh};
+      if(this.rooms.every(r=>!this.overlaps(r,c,1))){
+        this.carveRoom(c);
+        if(this.rooms.length>0) this.connectRooms(this.rooms[this.rooms.length-1],c);
+        this.rooms.push(c);
+      }
+    }
+    const f=this.rooms[0];
+    this.startPos={x:f.x+Math.floor(f.w/2), z:f.y+Math.floor(f.h/2)};
+    this.enemies=this.rooms.slice(1).map(r=>{
+      const hp=20+this.rand(0,20);
+      return{x:r.x+Math.floor(r.w/2),z:r.y+Math.floor(r.h/2),
+             hp,maxHp:hp,attack:5+this.rand(0,5),
+             name:ENEMY_NAMES[this.rand(0,ENEMY_NAMES.length-1)],alive:true};
+    });
+  }
+  isWall(x,z){
+    return x<0||z<0||x>=this.width||z>=this.height||this.grid[z][x]===1;
+  }
+  getEnemyAt(x,z){return this.enemies.find(e=>e.alive&&e.x===x&&e.z===z);}
+}
+
+// ── Renderer ─────────────────────────────────────────────────────────────────
+
+const TILE=2, WALL_H=2.6, EYE_Y=1.15;
+const DIR_ANGLE=[0,-Math.PI/2,Math.PI,Math.PI/2];
+
+class Renderer {
+  constructor(canvas){
+    this.scene=new THREE.Scene();
+    this.scene.background=new THREE.Color(0x000000);
+    this.scene.fog=new THREE.FogExp2(0x000000,0.09);
+    this.camera=new THREE.PerspectiveCamera(72,1,0.05,60);
+    this.renderer=new THREE.WebGLRenderer({canvas,antialias:false});
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+    this._setupLights();
+    this.dungeonGroup=new THREE.Group();
+    this.enemyGroup=new THREE.Group();
+    this.scene.add(this.dungeonGroup,this.enemyGroup);
+    this.torchTime=0;
+  }
+  _setupLights(){
+    this.scene.add(new THREE.AmbientLight(0x0d0d18,1));
+    this.torch=new THREE.PointLight(0xff7722,2.2,9,2);
+    this.camera.add(this.torch);
+    this.scene.add(this.camera);
+    const cold=new THREE.PointLight(0x3355aa,0.4,15,2);
+    cold.position.set(0,WALL_H*.5,-20);
+    this.scene.add(cold);
+  }
+  buildDungeon(grid){
+    this.dungeonGroup.clear();
+    const wMat=new THREE.MeshLambertMaterial({color:0x3a2b1e});
+    const fMat=new THREE.MeshLambertMaterial({color:0x191410});
+    const cMat=new THREE.MeshLambertMaterial({color:0x0c0b09});
+    const wGeo=new THREE.BoxGeometry(TILE,WALL_H,TILE);
+    const pGeo=new THREE.PlaneGeometry(TILE,TILE);
+    for(let z=0;z<grid.length;z++){
+      for(let x=0;x<grid[z].length;x++){
+        const wx=x*TILE,wz=z*TILE;
+        if(grid[z][x]===1){
+          const w=new THREE.Mesh(wGeo,wMat);
+          w.position.set(wx,WALL_H/2,wz); this.dungeonGroup.add(w);
+        } else {
+          const fl=new THREE.Mesh(pGeo,fMat);
+          fl.rotation.x=-Math.PI/2; fl.position.set(wx,0,wz); this.dungeonGroup.add(fl);
+          const cl=new THREE.Mesh(pGeo,cMat);
+          cl.rotation.x=Math.PI/2; cl.position.set(wx,WALL_H,wz); this.dungeonGroup.add(cl);
+        }
+      }
+    }
+  }
+  buildEnemyMarkers(enemies){
+    this.enemyGroup.clear();
+    const eGeo=new THREE.SphereGeometry(0.07,6,6);
+    const eMat=new THREE.MeshBasicMaterial({color:0xff2200});
+    enemies.forEach(enemy=>{
+      const m=new THREE.Group();
+      [-0.15,0.15].forEach(ox=>{
+        const eye=new THREE.Mesh(eGeo,eMat); eye.position.set(ox,0,0); m.add(eye);
+      });
+      m.add(new THREE.PointLight(0xff1100,0.8,3,2));
+      m.position.set(enemy.x*TILE,EYE_Y,enemy.z*TILE);
+      m.userData.enemy=enemy;
+      this.enemyGroup.add(m);
+    });
+  }
+  updateEnemyMarkers(){
+    this.enemyGroup.children.forEach(m=>m.visible=m.userData.enemy.alive);
+  }
+  setPlayer(x,z,dir){
+    this.camera.position.set(x*TILE,EYE_Y,z*TILE);
+    this.camera.rotation.set(0,DIR_ANGLE[dir],0);
+  }
+  resize(w,h){
+    this.renderer.setSize(w,h);
+    this.camera.aspect=w/h;
+    this.camera.updateProjectionMatrix();
+  }
+  render(dt){
+    this.torchTime+=dt;
+    this.torch.intensity=2.0+Math.sin(this.torchTime*6.3)*.12+Math.sin(this.torchTime*11.7)*.06;
+    this.renderer.render(this.scene,this.camera);
+  }
+}
+
+// ── Player ───────────────────────────────────────────────────────────────────
+
+const DECK=[
+  {id:'s1',name:'Strike',     cost:1,type:'attack',value:6, desc:'Deal 6 damage'},
+  {id:'s2',name:'Strike',     cost:1,type:'attack',value:6, desc:'Deal 6 damage'},
+  {id:'s3',name:'Strike',     cost:1,type:'attack',value:6, desc:'Deal 6 damage'},
+  {id:'h1',name:'Heavy Blow', cost:2,type:'attack',value:14,desc:'Deal 14 damage'},
+  {id:'d1',name:'Defend',     cost:1,type:'block', value:5, desc:'Gain 5 block'},
+  {id:'d2',name:'Defend',     cost:1,type:'block', value:5, desc:'Gain 5 block'},
+  {id:'q1',name:'Quick Step', cost:0,type:'block', value:3, desc:'Gain 3 block'},
+];
+
+class Player {
+  constructor(x,z){
+    this.x=x; this.z=z; this.dir=0;
+    this.hp=80; this.maxHp=100; this.block=0;
+    this.deck=DECK.map(c=>({...c}));
+    this.hand=[]; this.energy=3; this.maxEnergy=3;
+  }
+  forwardDelta(){
+    return{dx:[0,1,0,-1][this.dir],dz:[-1,0,1,0][this.dir]};
+  }
+  turnLeft() {this.dir=(this.dir+3)%4}
+  turnRight(){this.dir=(this.dir+1)%4}
+  moveTo(x,z){this.x=x;this.z=z}
+  drawHand(n=4){
+    this.hand=[...this.deck].sort(()=>Math.random()-.5).slice(0,n);
+    this.energy=this.maxEnergy; this.block=0;
+  }
+}
+
+// ── Game ─────────────────────────────────────────────────────────────────────
+
+class Game {
+  constructor(){
+    this.canvas=document.getElementById('dungeon-canvas');
+    this.state='explore'; this.currentEnemy=null;
+    this.lastTime=0; this.floor=1;
+    this._newFloor();
+    this._setupInput();
+    this._resize();
+    window.addEventListener('resize',()=>this._resize());
+    requestAnimationFrame(t=>this._loop(t));
+  }
+  _newFloor(){
+    this.dungeon=new Dungeon();
+    const{x,z}=this.dungeon.startPos;
+    if(!this.renderer) this.renderer=new Renderer(this.canvas);
+    if(!this.player){this.player=new Player(x,z);}
+    else{this.player.moveTo(x,z);this.player.dir=0;}
+    this.renderer.buildDungeon(this.dungeon.grid);
+    this.renderer.buildEnemyMarkers(this.dungeon.enemies);
+    this.renderer.setPlayer(this.player.x,this.player.z,this.player.dir);
+    document.getElementById('floor-num').textContent=this.floor;
+    this._updateHUD();
+  }
+  _resize(){
+    const v=document.getElementById('dungeon-view');
+    this.renderer.resize(v.clientWidth,v.clientHeight);
+  }
+  _loop(time){
+    const dt=Math.min((time-this.lastTime)/1000,.1);
+    this.lastTime=time;
+    this.renderer.render(dt);
+    requestAnimationFrame(t=>this._loop(t));
+  }
+  _move(fwd){
+    if(this.state!=='explore')return;
+    const{dx,dz}=this.player.forwardDelta();
+    const nx=this.player.x+(fwd?dx:-dx), nz=this.player.z+(fwd?dz:-dz);
+    if(this.dungeon.isWall(nx,nz))return;
+    const enemy=this.dungeon.getEnemyAt(nx,nz);
+    if(enemy&&fwd){this._startCombat(enemy);return;}
+    this.player.moveTo(nx,nz);
+    this.renderer.setPlayer(this.player.x,this.player.z,this.player.dir);
+  }
+  _turn(left){
+    if(this.state!=='explore')return;
+    left?this.player.turnLeft():this.player.turnRight();
+    this.renderer.setPlayer(this.player.x,this.player.z,this.player.dir);
+  }
+  _startCombat(enemy){
+    this.state='combat'; this.currentEnemy=enemy;
+    document.getElementById('controls').classList.add('hidden');
+    document.getElementById('combat-controls').classList.remove('hidden');
+    document.getElementById('enemy-overlay').classList.remove('hidden');
+    document.getElementById('enemy-name').textContent=enemy.name;
+    document.getElementById('enemy-intent-val').textContent=enemy.attack;
+    this.player.drawHand();
+    this._updateCombatUI(); this._updateHUD();
+  }
+  _endCombat(){
+    this.currentEnemy.alive=false;
+    this.renderer.updateEnemyMarkers();
+    this.state='explore'; this.currentEnemy=null;
+    document.getElementById('controls').classList.remove('hidden');
+    document.getElementById('combat-controls').classList.add('hidden');
+    document.getElementById('enemy-overlay').classList.add('hidden');
+    this._updateHUD();
+  }
+  playCard(i){
+    if(this.state!=='combat')return;
+    const card=this.player.hand[i];
+    if(!card||this.player.energy<card.cost)return;
+    this.player.energy-=card.cost;
+    this.player.hand.splice(i,1);
+    if(card.type==='attack'){
+      this.currentEnemy.hp=Math.max(0,this.currentEnemy.hp-card.value);
+      this._flash();
+      if(this.currentEnemy.hp<=0){setTimeout(()=>this._endCombat(),400);this._updateCombatUI();return;}
+    } else {
+      this.player.block+=card.value;
+    }
+    this._updateCombatUI(); this._updateHUD();
+  }
+  _enemyTurn(){
+    if(this.state!=='combat')return;
+    const dmg=this.currentEnemy.attack;
+    const abs=Math.min(this.player.block,dmg);
+    this.player.block=Math.max(0,this.player.block-dmg);
+    this.player.hp=Math.max(0,this.player.hp-(dmg-abs));
+    this._updateHUD(); this.player.drawHand(); this._updateCombatUI();
+  }
+  _updateHUD(){
+    document.getElementById('health-fill').style.width=(this.player.hp/this.player.maxHp*100)+'%';
+    document.getElementById('health-text').textContent=`${this.player.hp}/${this.player.maxHp}`;
+    document.getElementById('block-text').textContent=`🛡 ${this.player.block}`;
+    document.getElementById('energy-text').textContent=`⚡ ${this.player.energy}`;
+  }
+  _updateCombatUI(){
+    const e=this.currentEnemy; if(!e)return;
+    document.getElementById('enemy-hp-fill').style.width=Math.max(0,e.hp/e.maxHp*100)+'%';
+    document.getElementById('enemy-hp-text').textContent=`${e.hp}/${e.maxHp}`;
+    document.getElementById('energy-text').textContent=`⚡ ${this.player.energy}`;
+    document.getElementById('block-text').textContent=`🛡 ${this.player.block}`;
+    const hand=document.getElementById('hand');
+    hand.innerHTML='';
+    this.player.hand.forEach((card,i)=>{
+      const el=document.createElement('div');
+      el.className=`card ${card.type}${this.player.energy<card.cost?' disabled':''}`;
+      el.innerHTML=`<div class="card-cost">${card.cost}</div>
+        <div class="card-name">${card.name}</div>
+        <div class="card-value">${card.value}</div>
+        <div class="card-desc">${card.desc}</div>`;
+      el.addEventListener('pointerdown',ev=>{ev.preventDefault();this.playCard(i);});
+      hand.appendChild(el);
+    });
+  }
+  _flash(){
+    const v=document.getElementById('dungeon-view');
+    v.classList.remove('damage-flash'); void v.offsetWidth; v.classList.add('damage-flash');
+  }
+  _setupInput(){
+    const on=(id,fn)=>{
+      const el=document.getElementById(id); if(!el)return;
+      el.addEventListener('pointerdown',e=>{e.preventDefault();fn();});
+    };
+    on('btn-forward',()=>this._move(true));
+    on('btn-back',   ()=>this._move(false));
+    on('btn-left',   ()=>this._turn(true));
+    on('btn-right',  ()=>this._turn(false));
+    on('btn-end-turn',()=>this._enemyTurn());
+    window.addEventListener('keydown',e=>{
+      if(e.key==='ArrowUp'   ||e.key==='w')this._move(true);
+      if(e.key==='ArrowDown' ||e.key==='s')this._move(false);
+      if(e.key==='ArrowLeft' ||e.key==='a')this._turn(true);
+      if(e.key==='ArrowRight'||e.key==='d')this._turn(false);
+      if(e.key==='Enter'||e.key===' ')      this._enemyTurn();
+    });
+  }
+}
+
+new Game();
+</script>
+</body>
+</html>
