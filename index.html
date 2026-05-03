@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>GrimDeck</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- 3D dungeon view -->
+    <div id="dungeon-view">
+      <canvas id="dungeon-canvas"></canvas>
+
+      <!-- Enemy info overlay (combat only) -->
+      <div id="enemy-overlay" class="hidden">
+        <div id="enemy-info">
+          <span id="enemy-name">Skeleton</span>
+          <div id="enemy-hp-bar"><div id="enemy-hp-fill"></div></div>
+          <span id="enemy-hp-text">30/30</span>
+        </div>
+        <div id="enemy-intent">⚔ Attacks for <span id="enemy-intent-val">8</span></div>
+      </div>
+    </div>
+
+    <!-- HUD bar -->
+    <div id="hud">
+      <div id="hud-hp">
+        <div id="health-bar"><div id="health-fill"></div></div>
+        <span id="health-text">80/100</span>
+      </div>
+      <div id="hud-center">Floor <span id="floor-num">1</span></div>
+      <div id="hud-right">
+        <span id="block-text" class="hud-icon">🛡 0</span>
+        <span id="energy-text" class="hud-icon">⚡ 3</span>
+      </div>
+    </div>
+
+    <!-- Exploration controls -->
+    <div id="controls" class="bottom-panel">
+      <div id="dpad">
+        <div class="dpad-row">
+          <button id="btn-forward" class="dpad-btn">▲</button>
+        </div>
+        <div class="dpad-row">
+          <button id="btn-left" class="dpad-btn">◀</button>
+          <div class="dpad-center"></div>
+          <button id="btn-right" class="dpad-btn">▶</button>
+        </div>
+        <div class="dpad-row">
+          <button id="btn-back" class="dpad-btn">▼</button>
+        </div>
+      </div>
+      <div id="explore-actions">
+        <button id="btn-minimap" class="action-btn">🗺</button>
+      </div>
+    </div>
+
+    <!-- Combat controls (replaces D-pad during combat) -->
+    <div id="combat-controls" class="bottom-panel hidden">
+      <div id="hand"></div>
+      <button id="btn-end-turn" class="end-turn-btn">End Turn</button>
+    </div>
+
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
