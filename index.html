@@ -15,6 +15,7 @@
     <!-- 3D dungeon view -->
     <div id="dungeon-view">
       <canvas id="dungeon-canvas"></canvas>
+      <canvas id="minimap"></canvas>
 
       <!-- Enemy info overlay (combat only) -->
       <div id="enemy-overlay" class="hidden">
@@ -56,14 +57,23 @@
         </div>
       </div>
       <div id="explore-actions">
-        <button id="btn-minimap" class="action-btn">🗺</button>
+        <button id="btn-toggle-map" class="action-btn">🗺</button>
       </div>
     </div>
 
     <!-- Combat controls (replaces D-pad during combat) -->
     <div id="combat-controls" class="bottom-panel hidden">
+      <div id="combat-stats"></div>
       <div id="hand"></div>
       <button id="btn-end-turn" class="end-turn-btn">End Turn</button>
+    </div>
+
+    <!-- Reward overlay -->
+    <div id="reward-overlay" class="hidden">
+      <div id="reward-title">⚔ Victory!</div>
+      <div id="reward-sub">Choose a card to add to your deck</div>
+      <div id="reward-cards"></div>
+      <button id="btn-skip-reward">Skip reward</button>
     </div>
 
   </div>

@@ -1,5 +1,6 @@
 import { Dungeon } from '../engine/Dungeon.js';
 import { Renderer } from '../engine/Renderer.js';
+import { Minimap } from '../engine/Minimap.js';
 import { Player, CARDS } from './Player.js';
 
 export class Game {
@@ -35,6 +36,8 @@ export class Game {
     this.renderer.buildDungeon(this.dungeon.grid);
     this.renderer.buildEnemyMarkers(this.dungeon.enemies);
     this.renderer.setPlayer(this.player.x, this.player.z, this.player.dir);
+    this.minimap = new Minimap(document.getElementById('minimap'), this.dungeon);
+    this.minimap.update(this.player, this.dungeon.enemies);
     document.getElementById('floor-num').textContent = this.floor;
     this._updateHUD();
   }
@@ -67,12 +70,14 @@ export class Game {
 
     this.player.moveTo(nx, nz);
     this.renderer.setPlayer(this.player.x, this.player.z, this.player.dir);
+    this.minimap.update(this.player, this.dungeon.enemies);
   }
 
   _turn(left) {
     if (this.state !== 'explore') return;
     left ? this.player.turnLeft() : this.player.turnRight();
     this.renderer.setPlayer(this.player.x, this.player.z, this.player.dir);
+    this.minimap.update(this.player, this.dungeon.enemies);
   }
 
   // ── Combat ────────────────────────────────────
@@ -192,6 +197,7 @@ export class Game {
   _victory() {
     this.currentEnemy.alive = false;
     this.renderer.updateEnemyMarkers();
+    this.minimap.update(this.player, this.dungeon.enemies);
     document.getElementById('combat-controls').classList.add('hidden');
     document.getElementById('enemy-overlay').classList.add('hidden');
     this._showReward();
@@ -289,6 +295,7 @@ export class Game {
     on('btn-right',       () => this._turn(false));
     on('btn-end-turn',    () => this._enemyTurn());
     on('btn-skip-reward', () => this._returnToExplore());
+    on('btn-toggle-map',  () => document.getElementById('minimap').classList.toggle('hidden'));
 
     window.addEventListener('keydown', e => {
       if (e.key === 'ArrowUp'    || e.key === 'w') this._move(true);
