@@ -377,26 +377,33 @@ class Renderer {
     this.torchTime=0;
   }
   _setupLights(){
-    this.scene.add(new THREE.AmbientLight(0x7a6848,1.0));
-    this.torch=new THREE.PointLight(0xffaa55,5.5,14,2);
+    this.scene.add(new THREE.AmbientLight(0x9a8858,2.2));
+    this.torch=new THREE.PointLight(0xffbb66,9,20,2);
     this.camera.add(this.torch);
     this.scene.add(this.camera);
   }
-  _loadTex(src,seamless=false){
-    const t=new THREE.TextureLoader().load(src);
-    t.wrapS=seamless?THREE.MirroredRepeatWrapping:THREE.RepeatWrapping;
-    t.wrapT=THREE.RepeatWrapping;
+  _loadTex(src){
+    const t=new THREE.TextureLoader().load(src,tex=>{
+      const img=tex.image,w=img.width,h=img.height,hw=w>>1,hh=h>>1;
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      const ctx=c.getContext('2d');
+      ctx.drawImage(img,hw,hh,hw,hh, 0, 0,hw,hh);
+      ctx.drawImage(img, 0,hh,hw,hh,hw, 0,hw,hh);
+      ctx.drawImage(img,hw, 0,hw,hh, 0,hh,hw,hh);
+      ctx.drawImage(img, 0, 0,hw,hh,hw,hh,hw,hh);
+      tex.image=c;tex.needsUpdate=true;
+    });
+    t.wrapS=t.wrapT=THREE.RepeatWrapping;
     t.colorSpace=THREE.SRGBColorSpace;
-    if(seamless)t.repeat.set(2,1);
     return t;
   }
   buildDungeon(grid){
     this.dungeonGroup.clear();
     const wMats=[
-      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall,true)}),
-      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_rune,true)}),
-      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_torch,true)}),
-      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_skull,true)}),
+      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall)}),
+      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_rune)}),
+      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_torch)}),
+      new THREE.MeshLambertMaterial({map:this._loadTex(TEX.wall_skull)}),
     ];
     const fMat=new THREE.MeshLambertMaterial({map:this._loadTex(TEX.floor)});
     const cMat=new THREE.MeshLambertMaterial({color:0x0e0c0a});
@@ -441,7 +448,7 @@ class Renderer {
   resize(w,h){this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix()}
   render(dt){
     this.torchTime+=dt;
-    this.torch.intensity=5.2+Math.sin(this.torchTime*6.3)*.28+Math.sin(this.torchTime*11.7)*.14;
+    this.torch.intensity=7.5+Math.sin(this.torchTime*6.3)*.5+Math.sin(this.torchTime*11.7)*.25;
     this.renderer.render(this.scene,this.camera);
   }
 }

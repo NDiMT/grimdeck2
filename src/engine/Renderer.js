@@ -34,18 +34,28 @@ export class Renderer {
   }
 
   _setupLights() {
-    this.scene.add(new THREE.AmbientLight(0x7a6848, 1.0));
-    this.torch = new THREE.PointLight(0xffaa55, 5.5, 14, 2);
+    this.scene.add(new THREE.AmbientLight(0x9a8858, 2.2));
+    this.torch = new THREE.PointLight(0xffbb66, 9, 20, 2);
     this.camera.add(this.torch);
     this.scene.add(this.camera);
   }
 
-  _loadTex(path, seamless = false) {
-    const t = new THREE.TextureLoader().load(path);
-    t.wrapS = seamless ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
-    t.wrapT = THREE.RepeatWrapping;
+  _loadTex(path) {
+    const t = new THREE.TextureLoader().load(path, tex => {
+      const img = tex.image;
+      const w = img.width, h = img.height, hw = w >> 1, hh = h >> 1;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, hw, hh, hw, hh,  0,  0, hw, hh);
+      ctx.drawImage(img,  0, hh, hw, hh, hw,  0, hw, hh);
+      ctx.drawImage(img, hw,  0, hw, hh,  0, hh, hw, hh);
+      ctx.drawImage(img,  0,  0, hw, hh, hw, hh, hw, hh);
+      tex.image = c;
+      tex.needsUpdate = true;
+    });
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.colorSpace = THREE.SRGBColorSpace;
-    if (seamless) t.repeat.set(2, 1);
     return t;
   }
 
@@ -53,10 +63,10 @@ export class Renderer {
     this.dungeonGroup.clear();
 
     const wMats = [
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall.jpg', true) }),
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_rune.jpg', true) }),
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_torch.jpg', true) }),
-      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_skull.jpg', true) }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall.jpg') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_rune.jpg') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_torch.jpg') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_skull.jpg') }),
     ];
     const fMat = new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor.jpg') });
     const cMat = new THREE.MeshLambertMaterial({ color: 0x0e0c0a });
@@ -146,7 +156,7 @@ export class Renderer {
   render(dt) {
     this.torchTime += dt;
     this.torch.intensity =
-      4.2 + Math.sin(this.torchTime * 6.3) * 0.25 + Math.sin(this.torchTime * 11.7) * 0.12;
+      7.5 + Math.sin(this.torchTime * 6.3) * 0.5 + Math.sin(this.torchTime * 11.7) * 0.25;
 
     this.renderer.render(this.scene, this.camera);
   }
