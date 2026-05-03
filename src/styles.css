@@ -50,7 +50,24 @@ html, body {
   height: 100%;
 }
 
+/* gradient: walls fade to black at the top */
+#top-fade {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 55%;
+  background: linear-gradient(180deg,
+    rgba(0,0,0,1.0)  0%,
+    rgba(0,0,0,.75) 12%,
+    rgba(0,0,0,.35) 30%,
+    transparent     55%);
+  pointer-events: none;
+  z-index: 1;
+}
+
 #minimap {
+  z-index: 2;
   position: absolute;
   bottom: 10px;
   right: 10px;
@@ -70,6 +87,7 @@ html, body {
   justify-content: flex-start;
   padding-top: 12px;
   pointer-events: none;
+  z-index: 3;
 }
 
 #enemy-info {

@@ -34,21 +34,33 @@ export class Renderer {
   }
 
   _setupLights() {
-    this.scene.add(new THREE.AmbientLight(0x4a3a2a, 1.0));
-    this.torch = new THREE.PointLight(0xff9944, 4.5, 12, 2);
+    this.scene.add(new THREE.AmbientLight(0x7a6848, 1.0));
+    this.torch = new THREE.PointLight(0xffaa55, 5.5, 14, 2);
     this.camera.add(this.torch);
     this.scene.add(this.camera);
+  }
+
+  _loadTex(path) {
+    const t = new THREE.TextureLoader().load(path);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
   }
 
   buildDungeon(grid) {
     this.dungeonGroup.clear();
 
-    const wallMat = new THREE.MeshLambertMaterial({ color: 0x7a6050 });
-    const floorMat = new THREE.MeshLambertMaterial({ color: 0x3a3028 });
-    const ceilMat = new THREE.MeshLambertMaterial({ color: 0x1e1c18 });
+    const wMats = [
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall.jpg') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_rune.jpg') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_torch.jpg') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/wall_skull.jpg') }),
+    ];
+    const fMat = new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor.jpg') });
+    const cMat = new THREE.MeshLambertMaterial({ color: 0x0e0c0a });
 
-    const wallGeo = new THREE.BoxGeometry(TILE, WALL_H, TILE);
-    const planeGeo = new THREE.PlaneGeometry(TILE, TILE);
+    const wGeo = new THREE.BoxGeometry(TILE, WALL_H, TILE);
+    const pGeo = new THREE.PlaneGeometry(TILE, TILE);
 
     for (let z = 0; z < grid.length; z++) {
       for (let x = 0; x < grid[z].length; x++) {
@@ -56,16 +68,18 @@ export class Renderer {
         const wz = z * TILE;
 
         if (grid[z][x] === 1) {
-          const wall = new THREE.Mesh(wallGeo, wallMat);
+          const r = Math.random();
+          const mat = r < 0.60 ? wMats[0] : r < 0.80 ? wMats[1] : r < 0.92 ? wMats[2] : wMats[3];
+          const wall = new THREE.Mesh(wGeo, mat);
           wall.position.set(wx, WALL_H / 2, wz);
           this.dungeonGroup.add(wall);
         } else {
-          const floor = new THREE.Mesh(planeGeo, floorMat);
+          const floor = new THREE.Mesh(pGeo, fMat);
           floor.rotation.x = -Math.PI / 2;
           floor.position.set(wx, 0, wz);
           this.dungeonGroup.add(floor);
 
-          const ceil = new THREE.Mesh(planeGeo, ceilMat);
+          const ceil = new THREE.Mesh(pGeo, cMat);
           ceil.rotation.x = Math.PI / 2;
           ceil.position.set(wx, WALL_H, wz);
           this.dungeonGroup.add(ceil);
