@@ -117,7 +117,7 @@ export class Renderer {
       // color tint matches dungeon ambient so sprite looks lit by the scene
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: tex, transparent: true, alphaTest: 0.5, depthWrite: false,
-        color: 0x775533,
+        color: 0xbb9966,
       }));
       sprite.scale.set(sz, sz, 1);
       sprite.position.y = cy;
