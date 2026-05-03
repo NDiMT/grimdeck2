@@ -161,9 +161,9 @@ export class Renderer {
       const dist = cam.distanceTo(group.position);
       // fully dark at 10+ units, fully lit at 3 units
       const t = Math.max(0, Math.min(1, (10 - dist) / 7));
-      const r = 0x11 + Math.round((0xcc - 0x11) * t);
-      const g = 0x0a + Math.round((0xaa - 0x0a) * t);
-      const b = 0x04 + Math.round((0x66 - 0x04) * t);
+      const r = 0x11 + Math.round((0x88 - 0x11) * t);
+      const g = 0x0a + Math.round((0x66 - 0x0a) * t);
+      const b = 0x04 + Math.round((0x44 - 0x04) * t);
       group.userData.sprite.material.color.setRGB(r / 255, g / 255, b / 255);
     });
 
