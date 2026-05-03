@@ -806,7 +806,7 @@ class Game{
 const canvas=document.getElementById('g');
 const renderer=new Renderer(canvas);
 const game=new Game(renderer);
-let mvx=0,mvy=0,_sc=1,_ox=0,_oy=0;
+let mvx=0,mvy=0,_sc=1;
 
 function resize(){
   const sw=window.innerWidth,sh=window.innerHeight;
@@ -814,10 +814,11 @@ function resize(){
   canvas.width=VW;canvas.height=VH;
   canvas.style.width=Math.round(VW*_sc)+'px';
   canvas.style.height=Math.round(VH*_sc)+'px';
-  _ox=(sw-VW*_sc)/2;_oy=(sh-VH*_sc)/2;
-  canvas.style.marginLeft=_ox+'px';canvas.style.marginTop=_oy+'px';
 }
-function toV(cx,cy){return{x:(cx-_ox)/_sc,y:(cy-_oy)/_sc};}
+function toV(cx,cy){
+  const r=canvas.getBoundingClientRect();
+  return{x:(cx-r.left)/_sc,y:(cy-r.top)/_sc};
+}
 
 window.addEventListener('resize',resize);resize();
 
