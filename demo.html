@@ -141,11 +141,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Geo
   </div>
 </div>
 
-<script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}
-</script>
 <script type="module">
-import * as THREE from 'three';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
 
 // ── Dungeon generator ────────────────────────────────────────────────────────
 
@@ -208,7 +205,7 @@ class Renderer {
   constructor(canvas){
     this.scene=new THREE.Scene();
     this.scene.background=new THREE.Color(0x000000);
-    this.scene.fog=new THREE.FogExp2(0x000000,0.09);
+    this.scene.fog=new THREE.Fog(0x000000,4,22);
     this.camera=new THREE.PerspectiveCamera(72,1,0.05,60);
     this.renderer=new THREE.WebGLRenderer({canvas,antialias:false});
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
@@ -219,19 +216,16 @@ class Renderer {
     this.torchTime=0;
   }
   _setupLights(){
-    this.scene.add(new THREE.AmbientLight(0x0d0d18,1));
-    this.torch=new THREE.PointLight(0xff7722,2.2,9,2);
+    this.scene.add(new THREE.AmbientLight(0x4a3a2a,1.0));
+    this.torch=new THREE.PointLight(0xff9944,4.5,12,2);
     this.camera.add(this.torch);
     this.scene.add(this.camera);
-    const cold=new THREE.PointLight(0x3355aa,0.4,15,2);
-    cold.position.set(0,WALL_H*.5,-20);
-    this.scene.add(cold);
   }
   buildDungeon(grid){
     this.dungeonGroup.clear();
-    const wMat=new THREE.MeshLambertMaterial({color:0x3a2b1e});
-    const fMat=new THREE.MeshLambertMaterial({color:0x191410});
-    const cMat=new THREE.MeshLambertMaterial({color:0x0c0b09});
+    const wMat=new THREE.MeshLambertMaterial({color:0x7a6050});
+    const fMat=new THREE.MeshLambertMaterial({color:0x3a3028});
+    const cMat=new THREE.MeshLambertMaterial({color:0x1e1c18});
     const wGeo=new THREE.BoxGeometry(TILE,WALL_H,TILE);
     const pGeo=new THREE.PlaneGeometry(TILE,TILE);
     for(let z=0;z<grid.length;z++){
@@ -278,7 +272,7 @@ class Renderer {
   }
   render(dt){
     this.torchTime+=dt;
-    this.torch.intensity=2.0+Math.sin(this.torchTime*6.3)*.12+Math.sin(this.torchTime*11.7)*.06;
+    this.torch.intensity=4.2+Math.sin(this.torchTime*6.3)*.25+Math.sin(this.torchTime*11.7)*.12;
     this.renderer.render(this.scene,this.camera);
   }
 }
@@ -324,6 +318,7 @@ class Game {
     this._newFloor();
     this._setupInput();
     this._resize();
+    requestAnimationFrame(()=>this._resize());
     window.addEventListener('resize',()=>this._resize());
     requestAnimationFrame(t=>this._loop(t));
   }

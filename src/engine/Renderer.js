@@ -17,7 +17,7 @@ export class Renderer {
   constructor(canvas) {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000);
-    this.scene.fog = new THREE.FogExp2(0x000000, 0.09);
+    this.scene.fog = new THREE.Fog(0x000000, 4, 22);
 
     this.camera = new THREE.PerspectiveCamera(72, 1, 0.05, 60);
 
@@ -34,26 +34,18 @@ export class Renderer {
   }
 
   _setupLights() {
-    // Very dark ambient, slightly cool
-    this.scene.add(new THREE.AmbientLight(0x0d0d18, 1));
-
-    // Torch: warm orange point light on the camera
-    this.torch = new THREE.PointLight(0xff7722, 2.2, 9, 2);
+    this.scene.add(new THREE.AmbientLight(0x4a3a2a, 1.0));
+    this.torch = new THREE.PointLight(0xff9944, 4.5, 12, 2);
     this.camera.add(this.torch);
     this.scene.add(this.camera);
-
-    // Secondary cold light deep in corridor (static, dim)
-    const coldLight = new THREE.PointLight(0x3355aa, 0.4, 15, 2);
-    coldLight.position.set(0, WALL_H * 0.5, -20);
-    this.scene.add(coldLight);
   }
 
   buildDungeon(grid) {
     this.dungeonGroup.clear();
 
-    const wallMat = new THREE.MeshLambertMaterial({ color: 0x3a2b1e });
-    const floorMat = new THREE.MeshLambertMaterial({ color: 0x191410 });
-    const ceilMat = new THREE.MeshLambertMaterial({ color: 0x0c0b09 });
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0x7a6050 });
+    const floorMat = new THREE.MeshLambertMaterial({ color: 0x3a3028 });
+    const ceilMat = new THREE.MeshLambertMaterial({ color: 0x1e1c18 });
 
     const wallGeo = new THREE.BoxGeometry(TILE, WALL_H, TILE);
     const planeGeo = new THREE.PlaneGeometry(TILE, TILE);
@@ -125,7 +117,7 @@ export class Renderer {
   render(dt) {
     this.torchTime += dt;
     this.torch.intensity =
-      2.0 + Math.sin(this.torchTime * 6.3) * 0.12 + Math.sin(this.torchTime * 11.7) * 0.06;
+      4.2 + Math.sin(this.torchTime * 6.3) * 0.25 + Math.sin(this.torchTime * 11.7) * 0.12;
 
     this.renderer.render(this.scene, this.camera);
   }
