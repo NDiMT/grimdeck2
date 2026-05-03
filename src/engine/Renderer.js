@@ -41,17 +41,7 @@ export class Renderer {
   }
 
   _loadTex(path) {
-    const t = new THREE.TextureLoader().load(path, tex => {
-      const img = tex.image;
-      const w = img.width, h = img.height, hw = w >> 1;
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      const ctx = c.getContext('2d');
-      ctx.drawImage(img, hw, 0, hw, h,  0, 0, hw, h);
-      ctx.drawImage(img,  0, 0, hw, h, hw, 0, hw, h);
-      tex.image = c;
-      tex.needsUpdate = true;
-    });
+    const t = new THREE.TextureLoader().load(path);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
@@ -69,7 +59,7 @@ export class Renderer {
     const fMat = new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor.jpg') });
     const cMat = new THREE.MeshLambertMaterial({ color: 0x0e0c0a });
 
-    const wallGeo = new THREE.PlaneGeometry(TILE, WALL_H);
+    const wallGeo = new THREE.PlaneGeometry(TILE, TILE);
     const pGeo = new THREE.PlaneGeometry(TILE, TILE);
 
     // [neighborDx, neighborDz, rotY, posOffsetX, posOffsetZ]
@@ -92,7 +82,7 @@ export class Renderer {
             const r = Math.random();
             const mat = r < 0.60 ? wMats[0] : r < 0.80 ? wMats[1] : r < 0.92 ? wMats[2] : wMats[3];
             const face = new THREE.Mesh(wallGeo, mat);
-            face.position.set(wx + ox, WALL_H / 2, wz + oz);
+            face.position.set(wx + ox, TILE / 2, wz + oz);
             face.rotation.y = rotY;
             this.dungeonGroup.add(face);
           });
