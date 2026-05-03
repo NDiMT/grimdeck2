@@ -421,12 +421,12 @@ html, body {
 .card.skill  .card-cost { background: #081408; border-color: #1a6b2a; color: #80d090; }
 
 .card-name {
-  font-size: 6px;
+  font-size: 5px;
   color: var(--text);
   text-align: center;
-  line-height: 1.4;
+  line-height: 1.5;
   text-transform: uppercase;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .card-value {
@@ -442,12 +442,12 @@ html, body {
 .card.skill  .card-value { color: #80d090; }
 
 .card-desc {
-  font-size: 5px;
+  font-size: 4px;
   color: var(--text-dim);
   text-align: center;
   line-height: 1.6;
   margin-top: auto;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* ── End-turn button ──────────────────────────── */

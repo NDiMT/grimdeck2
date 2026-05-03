@@ -59,8 +59,9 @@ export class Renderer {
     const fMats = [
       new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor.png') }),
       new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor2.png') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor3.png') }),
+      new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/floor4.png') }),
     ];
-    const cMat = new THREE.MeshLambertMaterial({ map: this._loadTex('/textures/ceiling.png') });
 
     const wallGeo = new THREE.PlaneGeometry(TILE, TILE);
     const pGeo = new THREE.PlaneGeometry(TILE, TILE);
@@ -90,15 +91,12 @@ export class Renderer {
             this.dungeonGroup.add(face);
           });
         } else {
-          const floor = new THREE.Mesh(pGeo, Math.random() < 0.15 ? fMats[1] : fMats[0]);
+          const fr = Math.random();
+          const fMat = fr < 0.65 ? fMats[0] : fr < 0.80 ? fMats[1] : fr < 0.90 ? fMats[2] : fMats[3];
+          const floor = new THREE.Mesh(pGeo, fMat);
           floor.rotation.x = -Math.PI / 2;
           floor.position.set(wx, 0, wz);
           this.dungeonGroup.add(floor);
-
-          const ceil = new THREE.Mesh(pGeo, cMat);
-          ceil.rotation.x = Math.PI / 2;
-          ceil.position.set(wx, WALL_H, wz);
-          this.dungeonGroup.add(ceil);
         }
       }
     }
