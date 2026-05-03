@@ -822,10 +822,19 @@ function toV(cx,cy){
 
 window.addEventListener('resize',resize);resize();
 
-canvas.addEventListener('mousemove',e=>{const v=toV(e.clientX,e.clientY);mvx=v.x;mvy=v.y;});
-canvas.addEventListener('click',e=>{const v=toV(e.clientX,e.clientY);game.click(v.x,v.y);});
-canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0],v=toV(t.clientX,t.clientY);mvx=v.x;mvy=v.y;game.click(v.x,v.y);},{passive:false});
-canvas.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0],v=toV(t.clientX,t.clientY);mvx=v.x;mvy=v.y;},{passive:false});
+canvas.addEventListener('mousemove',e=>{mvx=e.offsetX/_sc;mvy=e.offsetY/_sc;});
+canvas.addEventListener('click',e=>{game.click(e.offsetX/_sc,e.offsetY/_sc);});
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0],r=canvas.getBoundingClientRect();
+  mvx=(t.clientX-r.left)/_sc;mvy=(t.clientY-r.top)/_sc;
+  game.click(mvx,mvy);
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const t=e.touches[0],r=canvas.getBoundingClientRect();
+  mvx=(t.clientX-r.left)/_sc;mvy=(t.clientY-r.top)/_sc;
+},{passive:false});
 window.addEventListener('keydown',e=>game.key(e.key));
 
 function loop(){
