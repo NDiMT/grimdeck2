@@ -119,15 +119,7 @@ export class Renderer {
       sprite.position.y = cy;
       group.add(sprite);
 
-      const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: tex, transparent: true, blending: THREE.AdditiveBlending,
-        color: enemy.glowColor || 0xff4400, opacity: 0.35, depthWrite: false,
-      }));
-      glow.scale.set(sz * 1.25, sz * 1.25, 1);
-      glow.position.y = cy;
-      group.add(glow);
-
-      const light = new THREE.PointLight(enemy.glowColor || 0xff4400, 1.2, 6, 2);
+      const light = new THREE.PointLight(0xff1100, 0.8, 3, 2);
       light.position.y = cy;
       group.add(light);
 
