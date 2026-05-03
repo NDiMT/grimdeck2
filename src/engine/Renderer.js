@@ -108,18 +108,22 @@ export class Renderer {
     enemies.forEach(enemy => {
       const group = new THREE.Group();
       const tex = loader.load(`/sprites/${enemy.sprite}.png`);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
       const sz = TILE * (enemy.size || 1.0);
       const fy = enemy.floatY || 0;
       const cy = sz / 2 + fy;
 
+      // color tint matches dungeon ambient so sprite looks lit by the scene
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: tex, transparent: true, alphaTest: 0.1, depthWrite: false,
+        color: 0x997744,
       }));
       sprite.scale.set(sz, sz, 1);
       sprite.position.y = cy;
       group.add(sprite);
 
-      const light = new THREE.PointLight(0xff1100, 0.8, 3, 2);
+      const light = new THREE.PointLight(0xff2200, 0.3, 2.5, 2);
       light.position.y = cy;
       group.add(light);
 
