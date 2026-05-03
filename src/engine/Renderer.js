@@ -112,8 +112,9 @@ export class Renderer {
     enemies.forEach(enemy => {
       const group = new THREE.Group();
       const tex = loader.load(`/sprites/${enemy.sprite}.png`);
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearFilter;
       const sz = TILE * (enemy.size || 1.0);
       const fy = enemy.floatY || 0;
       const cy = sz / 2 + fy;
